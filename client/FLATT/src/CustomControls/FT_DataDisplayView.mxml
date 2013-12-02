@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" creationComplete="OnInit(event)"
+		 xmlns:plus="plus.*" 
+		  width="100%"
+		  height="100%" xmlns:CustomControls="CustomControls.*" gap="0">
+	
+	<fx:Script>
+		<![CDATA[
+			import FLATTPlugin.*;
+			import Exec.*;
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			
+			import mx.containers.Canvas;
+			import mx.events.FlexEvent;
+			
+			import plus.*;
+			//--------------------------------------------------------------
+			protected function OnInit(event:FlexEvent):void
+			{
+				FT_PluginManager.GetInstance().addEventListener(FT_Events.FT_EVT_PLUGIN_EXEC_START,OnPluginExecStart);
+				FT_PluginManager.GetInstance().addEventListener(FT_Events.FT_EVT_PLUGIN_EXEC_FEEDBACK,OnPluginExecFeedback);							
+				FT_PluginManager.GetInstance().addEventListener(FT_Events.FT_EVT_PLUGIN_EXEC_END,OnPluginExecEnd);
+			}
+			//--------------------------------------------------------------
+			public function OnPluginExecStart(event:ZG_Event):void
+			{
+				var execObj:FT_PluginExec = event.data as FT_PluginExec;
+				var displayContainer:FT_DataDisplayContainer = m_MainStack.getChildByName(execObj.name) as FT_DataDisplayContainer;	
+				var xtraData:Array = event.xtraData;
+				var scheduleGuid:String = (xtraData == null? "" : xtraData[0]);
+				
+
+				if(displayContainer==null)
+				{
+					// does  not exist - create										
+					displayContainer = new FT_DataDisplayContainer();	
+					displayContainer.PluginExecutionStarted(execObj,true);// always reset UI first time around
+					//remembewr that this container is executing a schedule. The tab will be modified
+					displayContainer.scheduleGuid = scheduleGuid;
+					//initalize components inside display container
+					displayContainer.createDeferredContent();
+					displayContainer.validateNow();				
+					m_MainStack.addChild(displayContainer);					
+				}
+				else
+				{
+					
+					// if  the container is already present - make sure that the executingSchedule flag matches what the caller passed in
+					// Reset UI ,i.e clear all data from display, only if the current executingSchedule flag does not match the previous
+					// or   currently NOT executing schedule
+					var oldExecSchedule:Boolean = (displayContainer.scheduleGuid!="");
+					var newExecSchedule:Boolean = (scheduleGuid!="");
+					// set the new value
+					displayContainer.scheduleGuid = scheduleGuid;
+					var resetUI:Boolean = (oldExecSchedule !=newExecSchedule)|| (newExecSchedule == false);
+					displayContainer.PluginExecutionStarted(execObj,resetUI);
+					m_TabBar.AdjustTab(null,displayContainer);
+				}
+				m_MainStack.selectedIndex = m_MainStack.getChildIndex(displayContainer);
+				
+			}
+			//--------------------------------------------------------------
+			/* TODO: remove
+			public function OnPluginExecNextHost(event:ZG_Event):void
+			{
+				var execObj:FT_PluginExec = event.data as FT_PluginExec;
+				var displayContainer:FT_DataDisplayContainer = m_MainStack.getChildByName(execObj.name) as FT_DataDisplayContainer;
+				// it better be there
+				if(displayContainer!=null)				
+				{
+					displayContainer.SetExec(execObj);
+				}
+			}*/
+			
+			//--------------------------------------------------------------
+			/*public function OnPluginExecFeedback(event:ZG_Event):void
+			{
+				
+				var execObj:FT_PluginExec = event.data as FT_PluginExec;
+				
+				var displayContainer:FT_DataDisplayContainer=m_MainStack.getChildByName(execObj.name) as FT_DataDisplayContainer;																
+				if(displayContainer!=null)
+				{
+					displayContainer.ExecFeedback(execObj);
+				}
+			}*/
+			
+			public function OnPluginExecFeedback(event:ZG_Event):void
+			{
+				
+				var displayContainer:FT_DataDisplayContainer  = null;
+				var pluginResult:FT_PluginResult = event.data as FT_PluginResult;
+				displayContainer = m_MainStack.getChildByName(pluginResult.execObj.name) as FT_DataDisplayContainer;												
+				
+				if(displayContainer!=null)
+				{
+					displayContainer.ExecFeedback(pluginResult);
+				}
+			}
+
+			//--------------------------------------------------------------
+			public function OnPluginExecEnd(event:ZG_Event):void
+			{
+				var displayContainer:FT_DataDisplayContainer  = null;
+				var pluginResult:FT_PluginResult = event.data as FT_PluginResult;
+				displayContainer = m_MainStack.getChildByName(pluginResult.execObj.name) as FT_DataDisplayContainer;												
+						
+				if(displayContainer!=null)
+				{					
+					displayContainer.SetPluginResult(pluginResult);// update UI					
+					m_MainStack.selectedIndex = m_MainStack.getChildIndex(displayContainer);	
+				}
+			}
+		
+
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace components "components.*";
+		
+		.barStyle {
+			color: #000000;
+			font-size: 12;
+			font-weight: bold;
+		}
+		
+	</fx:Style>
+	
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace components "components.*";
+		
+		.barStyle_Schedule {
+			color: #000000;
+			font-size: 12;
+			font-weight: bold;
+			font-style:italic;
+		}
+		
+	</fx:Style>
+	
+	<CustomControls:FT_ResultTabBar id="m_TabBar" gap="0" cornerRadius="4" 
+					 styleName="barStyle"  closePolicy="always"				  
+					 dataProvider="{m_MainStack}"/>
+	
+	
+	
+	<mx:ViewStack id="m_MainStack" width="100%" height="100%"
+				  backgroundColor="#eeeeee" >
+		<!--<s:NavigatorContent id="main" label="Front" width="100%"  height="100%">-->
+		<!--<CustomControls:FT_DataDisplayContainer left="0" right="0" top="0" bottom="0">
+			</CustomControls:FT_DataDisplayContainer>-->
+			<!--<s:Label text="Closable Tabs" left="22" top="18"/>
+			<s:Label text="Easily Skinned and configurable." left="22" top="36"/>-->
+			
+		<!--</s:NavigatorContent>-->
+	</mx:ViewStack>
+	<!--<s:BorderContainer height="30" width="100%" 
+				   borderVisible="true" dropShadowVisible="true">
+		<s:layout>
+			<s:BasicLayout/>
+		</s:layout>-->
+		
+	<!--</s:BorderContainer>-->
+</s:VGroup>

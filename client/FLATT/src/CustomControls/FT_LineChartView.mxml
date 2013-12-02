@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:BorderContainer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		   xmlns:s="library://ns.adobe.com/flex/spark" 
+		   xmlns:mx="library://ns.adobe.com/flex/mx" 
+		   width="100%" height="100%" 
+		   creationComplete="OnInit()" 
+		   dropShadowVisible="true" 
+		   xmlns:Renderers="CustomControls.Renderers.*" 
+		   xmlns:ChartScrolling="CustomControls.ChartScrolling.*" 	
+		   xmlns:CustomControls="CustomControls.*">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here 	
+		<charts:ChartScroller id="m_Scroller" chart="{m_LineChart}" />-->	
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import CustomControls.ChartScrolling.*;
+			
+			import FLATTPlugin.FT_PluginResult;
+			
+			import com.ZG.Data.*;
+			import com.ZG.UserObjects.*;
+			import com.ZG.Utility.*;
+			
+			import mx.charts.AreaChart;
+			import mx.charts.CategoryAxis;
+			import mx.charts.DateTimeAxis;
+			import mx.charts.LinearAxis;
+			import mx.charts.chartClasses.NumericAxis;
+			import mx.charts.series.LineSeries;
+			import mx.collections.ArrayCollection;
+			import mx.collections.IList;
+			import mx.controls.Alert;
+			import mx.controls.ComboBox;
+			import mx.events.*;
+			import mx.messaging.AbstractConsumer;
+			
+			// TODO: save the last used account selection
+			
+			// private var _perfObjs:Array = new Array();
+			
+			private var m_PluginResults:Dictionary = new Dictionary();
+			private var m_SavedScrollPosition:int = 0;
+			
+			private function OnInit():void
+			{				
+				
+				Reset();
+				
+			}
+			//---------------------------------------//
+			public function SetupLineChart(pluginResult:FT_PluginResult):void
+			{
+				// result is coming from tghe same host - pli
+				
+				var plotPoints:Array = pluginResult.GetData() as Array;
+				
+				// TODO: Handle continuous display
+				// looks like there is no need to handle 
+				// appending data from multiple hosts in  a special way -
+				// line series will be added to array of line series, 
+				// so there may be multilple line series from multiple hosts
+				// However this does not take into account continuous display
+				// There we need to figure out which lineseries the data belogs to
+				if(plotPoints!= null && plotPoints.length > 0 )
+				{
+					this.enabled = true;
+					// see if it's already in map
+					var curLS:LineSeries = m_PluginResults[pluginResult.hostName];
+					
+					if(curLS == null)
+					{
+						curLS = CreateLineSeries(pluginResult.hostName);												
+					}
+					// data provider for the line series is an array of plot points									
+					
+					AppendToProvider(curLS ,plotPoints);
+					
+					/* I have no idea why this works but it does work propperly with single as well as multiple hosts
+					*/
+					if(m_AxisRenderer.dataProvider == null || m_AxisRenderer.dataProvider.length == 0 )
+					{
+						m_AxisRenderer.dataProvider = curLS.dataProvider as IList;
+						m_LineChart.dataProvider = m_AxisRenderer.maskedCollection;
+					}
+										
+					if(m_AxisRenderer.maskedCollection.length >= m_AxisRenderer.pageSize)
+					{
+						/*m_AxisRenderer.chartScrollBar.scrollBar.scrollPosition = m_AxisRenderer.pageSize * 
+							((m_AxisRenderer.chartScrollBar.scrollBar.scrollPosition/m_AxisRenderer.pageSize)+1)*/
+						// scroll all the way to the right to show the most recent 
+						m_AxisRenderer.chartScrollBar.scrollBar.scrollPosition = 
+							m_AxisRenderer.chartScrollBar.scrollBar.maxScrollPosition * m_AxisRenderer.pageSize;
+																				
+					}
+					
+					
+					
+				}				
+			}
+			//---------------------------------
+			// Assumes that data provider is ArrayCollection
+			protected function AppendToProvider(obj:Object,newData:Array):void
+			{
+				var data:Array;
+				if(obj.dataProvider == null)
+				{
+					//data = newData;
+					obj.dataProvider = new ArrayCollection(newData);
+				}
+				else
+				{
+					for(var i:int = 0; i < newData.length; ++i )
+					{
+						obj.dataProvider.addItem(newData[i]);
+					}															
+				}
+								
+			}
+			//---------------------------------------
+			// Only one lineseries object
+			public function CreateLineSeries(hostName:String):LineSeries
+			{
+				// make sure there are no elemenst in series array      	
+				
+				
+				SetDataUnits();
+				// create line series object for every account      			
+				var ls:LineSeries = new LineSeries();
+				ls.yField="yField";
+				ls.xField ="xField";
+				// TODO: figure out what to put here
+				ls.displayName = hostName;
+				// Add to map
+				m_PluginResults[hostName] = ls;
+				
+				//ls.interpolateValues = true;
+				//ls.setStyle("form","");
+				var currentSeries:Array = m_LineChart.series;
+				currentSeries.push(ls);
+				m_LineChart.series = currentSeries;	
+				//m_Legend.dataProvider = m_LineChart;				
+				
+				return ls;
+				
+			}
+			//---------------------------------------------
+			public function Reset():void
+			{
+				// zero data providers from all series a
+				for( var i:int =0; i < m_LineChart.series.length;++i)
+				{
+					m_LineChart.series[i].dataProvider = null;
+				}
+				m_LineChart.series = null;
+				
+				m_AxisRenderer.dataProvider = null;
+				m_LineChart.dataProvider = null;
+				ZG_Utils.ClearMap(m_PluginResults);
+			}
+			//--------------------------UNUSED--------------
+			public function CreateDate(input:Date):Date 
+			{
+				// Reformat the date input to create Date objects
+				// for the axis.
+				/* var a:Array = s.split("/");
+				
+				// The existing String s is in the format "MM/DD/YYYY". 
+				// To create a Date object, you pass "YYYY,MM,DD", 
+				// where MM is zero-based, to the Date() constructor.
+				var newDate:Date = new Date(a[2],a[0]-1,a[1]);*/
+				//   return new Date(s);
+				var d:Date = new Date(0);
+				d.fullYear = input.fullYear;
+				d.month = input.month;
+				d.date = input.date;
+				return d;
+			}
+			
+			//-----------------------------------------------------
+			// instrument is handled separately in oneditEnd 
+			public function OnComboBoxClose(event:DropdownEvent):void
+			{ 
+				if(ComboBox(event.target).id == "m_DateUnitsCB" )
+				{
+					HandleUnitsCB();
+				}
+				
+			}
+			
+			//-----------------------------------------------------
+			private function HandleUnitsCB():void
+			{
+				//DateTimeAxis(m_LineChart.horizontalAxis).dataUnits = this.m_DateUnitsCB.selectedLabel.toLocaleLowerCase();
+				//this.invalidateDisplayList();
+				SetDataUnits();
+			}
+			
+			//----------------------------------------------------
+			/*private function InitComboBoxes():void
+			{
+			
+				InitDateUnitsCB();
+				
+			}*/
+			
+			//-----------------------------------------------------------
+			/*private function InitDateUnitsCB():void
+			{
+				// don't use rollover color
+				m_DateUnitsCB.dropdown.setStyle("useRollOver",false);
+				m_DateUnitsCB.dataProvider = new ArrayCollection(new Array("Years",
+					"Months",
+					"Days",
+					"Hours",
+					"Minutes",
+					"Seconds"
+					// XXX !switching to ms is slow!! "Milliseconds"));
+				m_DateUnitsCB.selectedIndex = 1; // default to months
+			}*/
+			
+			//----------------------------------------------------------
+			
+			
+			//-------------------------------------------------------------------------------
+			private function SetDataUnits():void
+			{
+				//DateTimeAxis(m_LineChart.horizontalAxis).dataUnits = m_DateUnitsCB.selectedLabel.toLowerCase();
+				//DateTimeAxis(m_LineChart.horizontalAxis).labelUnits = m_DateUnitsCB.selectedLabel.toLowerCase(); 		    
+							
+			}
+			// NOTE This 
+			public function HasResults():Boolean
+			{								 
+				return (ZG_Utils.ToArray(m_PluginResults).length > 0);
+			}
+			
+			private function OnChartUpdate():void
+			{
+				
+				m_LineChart.verticalAxisRenderers[0].move(0,m_LineChart.verticalAxisRenderers[0].top+10);
+			}
+
+			//---------------------------
+			/*
+			<mx:verticalAxis>
+			<mx:LinearAxis baseAtZero="false"/>							    
+			</mx:verticalAxis>
+			
+			<mx:horizontalAxis>
+			<mx:CategoryAxis id="m_HA"
+			categoryField="xField"
+			/>
+			</mx:horizontalAxis>
+			
+			<mx:horizontalAxisRenderers>				
+			<mx:AxisRenderer axis="{m_HA}"
+			canDropLabels="true" />			
+			</mx:horizontalAxisRenderers>		
+			
+			
+			<mx:horizontalAxis>								
+			<CustomControls:FT_CategoryAxis id="m_HA" categoryField="xField"/>		
+			</mx:horizontalAxis>
+			
+			<mx:seriesFilters>
+			<fx:Array />
+			</mx:seriesFilters>*/
+			
+		]]>
+	</fx:Script>
+		
+		
+		<ChartScrolling:FT_ScrollableLineChart 
+			id="m_LineChart" 
+			left="0" right="0" 
+			top="0" bottom="53" 
+			paddingBottom="30"					  
+			paddingRight="5"
+			showDataTips="true"
+			horizontalRendererGapY="6">       
+		
+			
+			<ChartScrolling:verticalAxis >
+				<mx:LinearAxis baseAtZero="false"/>							    
+			</ChartScrolling:verticalAxis>
+			<!-- must be category axis to support arbitrary strings in horizontal axis-->
+			
+			<!-- Now that these components are inside a derived class we must provide
+			the same namespace for them as for derived class.. weird -->
+			
+			<ChartScrolling:horizontalAxis>								
+				<mx:CategoryAxis id="m_HA" categoryField="xField"/>			
+			</ChartScrolling:horizontalAxis>
+			
+			<ChartScrolling:horizontalAxisRenderers>				
+				
+				<Renderers:ScrollBarAxisRenderer 
+					id="m_AxisRenderer"
+					axis="{m_HA}" 					
+					canDropLabels="true" 
+					placement="bottom"					
+					pageSize="10"					 
+					/>					
+			</ChartScrolling:horizontalAxisRenderers>			
+			
+		</ChartScrolling:FT_ScrollableLineChart>
+	
+	<s:BorderContainer  left="1" right="1" bottom="36" height="43" borderVisible="false" >
+		<s:Scroller width="100%" height="100%">
+			<s:Group  clipAndEnableScrolling="true">
+			<mx:Legend id="m_Legend" left="0" right="0" top="0" dataProvider="{m_LineChart}" direction="vertical"/>				
+			</s:Group>                 
+		</s:Scroller>      
+	</s:BorderContainer>
+	
+	
+</s:BorderContainer>

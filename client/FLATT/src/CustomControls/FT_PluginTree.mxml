@@ -1,0 +1,569 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Tree xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" 
+		 borderStyle="none"
+		 folderClosedIcon="@Embed(source='assets/action_cat-22.png')"
+		 folderOpenIcon="@Embed(source='assets/action_cat-22.png')"
+		 creationComplete="OnInit()"		 
+		 itemOpen="OnItemOpen(event)" 
+		 itemClose="OnItemClose(event)"
+		 doubleClickEnabled="true"
+		 doubleClick= "OnItemDoubleClick(event)"
+		 click ="OnClick(event)"
+		 useRollOver="false" 
+		 dropEnabled="false"	
+		 dragEnabled="true"		 
+		 dragMoveEnabled="false"
+		 labelFunction="PluginLabelFunc"
+		 
+		 dataTipFunction="DataTipFunc"
+		 
+		 
+			
+		 		  
+		 >
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import CustomControls.Renderers.FT_PluginTreeItemRenderer;
+			import CustomControls.SearchEvent;
+			
+			import DesktopApp.*;
+			
+			import FLATTPlugin.*;
+			
+			import Licensing.*;
+			
+			import Repository.*;
+			
+			import TargetHostManagement.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Data.*;
+			import com.ZG.Events.*;
+			import com.ZG.UserObjects.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.*;
+			import mx.controls.Alert;
+			import mx.controls.listClasses.*;
+			import mx.core.FlexGlobals;
+			import mx.core.UIComponent;
+			import mx.events.*;
+			import mx.events.DragEvent;
+			import mx.managers.DragManager;
+			import mx.managers.PopUpManager;
+			import Application.*;	
+			
+			
+			[Bindable] 
+			//protected var m_TreeObjects:ArrayCollection = new ArrayCollection();
+			protected var m_DragHelper:FT_DragHelper = new FT_DragHelper();
+			
+			protected  var CM_NEW_INDEX:int = 0
+			protected  var CM_DELETE_INDEX:int = 1;
+			protected  var CM_EDIT_INDEX: int = 2;
+			protected  var CM_EXPORT_INDEX:int = 3;
+			
+			protected static const  STR_NEW_PLUGIN:String = ZG_Utils.TranslateString("New Action...");
+			protected static const  STR_DELETE_PLUGIN:String = ZG_Utils.TranslateString("Delete");
+			protected static const  STR_EDIT_PLUGIN:String = ZG_Utils.TranslateString("Edit Action...");
+			protected static const  STR_EXPORT_PLUGIN:String = ZG_Utils.TranslateString("Export...");
+			protected static const  STR_OPEN_CONTAINING_FOLDER:String = ZG_Utils.TranslateString("Open Containing Folder...");
+			
+			
+			protected var m_OpenItems:Array = new Array();
+			protected function OnInit():void
+			{
+				
+				AddInsertPluginHandler();
+							
+				// data provider for tree points to plugin manager plugin collection
+				// It is organized by category where categories are plugin containers
+				dataProvider= GetContainerCollection();
+		
+				InsertContextMenus();
+				
+				m_DragHelper.helpee = this;
+				m_DragHelper.allowsPluginDrop = false;
+				
+				addEventListener(DragEvent.DRAG_ENTER, OnDragEnter, true, 0, true);
+				addEventListener(DragEvent.DRAG_OVER, OnDragOver, true, 0, true);
+				addEventListener(DragEvent.DRAG_DROP, OnDragDrop);//, true, 0, true);				
+				this.itemRenderer = new ClassFactory(FT_PluginTreeItemRenderer);
+			
+			}
+			//-----------------------------------------------------------
+			public function ExpandItemContainer(plugin:FT_Plugin):void
+			{
+				
+			}
+			//-----------------------------------------------------------
+			// Insert messages data is an array where the first element is the parent
+			// and the second is the object
+			protected function OnInsertPlugin(evt:ZG_Event):void
+			{				
+				InsertNewTreeObject(evt.data as ZG_InsertObject);											
+			}
+			//-----------------------------------------------------------
+			// insert the object into the hierarchy - optionally insert into DB
+			protected function InsertNewTreeObject(insertObj:ZG_InsertObject):void
+			{
+				// Now that list of plugins lives in plugin manager, just call it to insert 
+				// the object into the hierarchy
+				FT_PluginManager.GetInstance().Insert(insertObj);	
+				ZG_Utils.ZG_DispatchEvent(this,FT_Events.FT_EVT_PLUGIN_INSERTED,insertObj.self);
+			}
+			
+			//---------------------------------------
+			// Keep track of open and closed containers
+			protected function OnItemOpen(e:TreeEvent):void 
+			{
+				var curItem:ZG_PersistentObject = e.item as ZG_PersistentObject;//e.currentTarget as ZG_PersistentObject;//e.item as ZG_PersistentObject;
+				if(m_OpenItems.indexOf(curItem)==-1)
+				{
+					m_OpenItems.push(curItem);
+				}
+				
+			}
+			// Keep track of open and closed containers
+			protected function OnItemClose(e:TreeEvent):void 
+			{
+				var curItem:ZG_PersistentObject = e.item as ZG_PersistentObject;//e.currentTarget as ZG_PersistentObject;//e.item as ZG_PersistentObject;
+				var itemIndex:int = m_OpenItems.indexOf(curItem);
+				if(itemIndex >=0)
+				{
+					m_OpenItems.splice(itemIndex,1);
+				}
+				
+			}
+			//-------------------------------------------------------------
+			protected function OnItemClick(e:ListEvent):void
+			{
+				var item:ZG_PersistentObject = this.selectedItem as ZG_PersistentObject;// e.currentTarget.selectedItem as ZG_PersistentObject;// e.item as ZG_PersistentObject;
+				if(item)
+				{
+					
+					/*
+					TODO if( item is ZG_Portfolio)
+					{
+						ZG_Utils.ZG_DispatchEvent(this,ZG_Event.EVT_PORTFOLIO_SELECTED,item);
+						
+					}
+					else if( item is ZG_Account)
+					{
+						ZG_Utils.ZG_DispatchEvent(this,ZG_Event.EVT_ACCOUNT_SELECTED,item);
+						
+					}													
+					else
+					{
+						trace("Unknown object selected!");
+					}*/
+					
+				}
+			}
+			//--------------------------------------------------
+			// prompt for host info
+			protected function OnItemDoubleClick(e:MouseEvent):void
+			{
+				var item:FT_Plugin = this.selectedItem as FT_Plugin;
+				if(item !=null && item.isContainer == false)
+				{
+					/*var loginWind:FT_HostLoginWindow = PopUpManager.createPopUp(FlexGlobals.topLevelApplication as DisplayObject, FT_HostLoginWindow, true) as FT_HostLoginWindow;
+					loginWind.SetPlugin(item );
+					PopUpManager.centerPopUp(loginWind);*/
+					//ZG_Utils.ZG_DispatchEvent(this,FT_Events.FT_EVT_EXECUTE_PLUGIN,item);
+					
+					FT_PluginManager.GetInstance().StartExecutingPlugin(item);
+				
+				}
+			}
+			
+		//---------------------------------------------------------------
+		protected function OnMenuItemSelect( event:ContextMenuEvent):void               
+		{
+			//trace("OnMenuItemSelect: selected menu = "+ event.currentTarget.name);
+			switch(this.contextMenu.getItemIndex(event.currentTarget as NativeMenuItem))
+			{			
+				case CM_DELETE_INDEX:
+					HandleDeletePlugin();
+					break;
+				case CM_NEW_INDEX:
+					HandleNewPlugin(true);
+					break;
+				case CM_EDIT_INDEX:
+					HandleNewPlugin(false);
+					break;
+					
+					break;
+				case CM_EXPORT_INDEX:
+					HandleExportPlugin();
+					break;
+				default:
+					break;
+			}		
+		}
+		//-------------------------------------------------------------------
+			// TODO:Synchronize with task! if a plugin is removed from here it may need to be removed from tasks list
+			public function HandleDeletePlugin():void
+			{
+			
+				if(!ZG_PersistentObject(this.selectedItem).isContainer)
+				{
+					//delete the object and all its children from DB.
+					var savedSelItem:Object = this.selectedItem;
+					var savedSelIndex:int = this.selectedIndex;
+					
+					
+					// for plugins - dont use array collection parameter.
+					FT_PluginManager.GetInstance().Delete(this.selectedItem as FT_Plugin,null);
+					
+					if(this.selectedItem.parentObj!=null && this.selectedItem.parentObj.children !=null )
+					{					
+						selectedItem.parentObj.DeleteChild(selectedItem);
+															
+					}
+					// update main and shortcut trees
+					//ZG_Utils.ZG_DispatchEvent(this,ZG_Event.EVT_TREE_UPDATE,savedSelItem);
+					this.selectedIndex = (savedSelIndex-1 < 0 ? 0 : savedSelIndex-1);
+					
+					dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK)); 
+				}
+			}
+			//-----------------------------------------------------------
+			// start plugin editor
+			public function HandleNewPlugin(forceNew:Boolean):void
+			{				
+				// also called from main ctrl bar to create new - then forceNew is true
+				var selItem:Object = (forceNew? null: this.selectedItem);
+				// if creating a new plugin need to check if license allows this
+				if(selItem == null)
+				{					
+					if(!FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_PLUGINS))
+					{
+						return;
+					}
+				}
+				
+				FT_PluginEditorWindow.GetInstance().SetPlugin(selItem as FT_Plugin);
+			}
+			//---------------------------------------------------------
+			// start plugin editor
+			public function HandleExportPlugin():void
+			{
+				var curPlug:FT_Plugin = this.selectedItem as FT_Plugin;
+				if( curPlug!=null )
+				{
+					ZG_FileUtils.SaveAs(curPlug.ToXMLString(),curPlug.name+".xml");			
+				}
+			}
+			//---------------------------------------------------------
+			protected function OnContextMenuSelect(event:ContextMenuEvent):void
+			{
+				var rightClickIndex:int = -1;
+				var rightClickItemRenderer:IListItemRenderer = null;
+				var sendSelectEvent:Boolean = false;
+				
+				if (event.mouseTarget is IListItemRenderer)
+				{
+					rightClickItemRenderer = IListItemRenderer(event.mouseTarget);
+				}
+				else if (event.mouseTarget.parent is IListItemRenderer)
+				{
+					rightClickItemRenderer = IListItemRenderer(event.mouseTarget.parent);
+				}
+				
+				if (rightClickItemRenderer != null)
+				{
+					rightClickIndex = this.itemRendererToIndex(rightClickItemRenderer);
+					if(rightClickIndex >=0)
+					{
+						// something was selsected in the list
+						if (this.selectedIndex != rightClickIndex)
+						{
+							this.selectedIndex = rightClickIndex;
+							sendSelectEvent = true;
+						}
+					}
+				}
+				
+				SetupContextMenusForSelectedItem(); 
+				if(rightClickIndex >=0)
+				{					
+					if(sendSelectEvent)
+					{            	
+						//send onclick event so that the item is selected           	
+						dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK)); 
+					}					
+				}
+			}
+			//----------------------------------------------------
+			// Delete plugin context menu is only enabled if plugin is under cursor
+			protected function SetupContextMenusForSelectedItem():void
+			{
+				//Delete
+				var cmi:ContextMenuItem = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_DELETE_PLUGIN);				
+				if(cmi !=null)
+				{
+					// assume delete is always there
+					cmi.enabled = (this.selectedItem is FT_Plugin);
+				}
+				//New
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_NEW_PLUGIN);
+				if(cmi!=null)
+				{
+					cmi.enabled = true;
+				}
+				//Edit	
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_EDIT_PLUGIN);				
+				if(cmi!=null)
+				{
+					cmi.enabled = (this.selectedItem is FT_Plugin);
+				}
+				//Export
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_EXPORT_PLUGIN);				
+				if(cmi!=null)
+				{
+					cmi.enabled = (this.selectedItem is FT_Plugin);
+				}								
+			}
+			//--------------------------------------
+			// this assumes that only one object is being dragged
+			protected function OnDragDrop(event:DragEvent):void
+			{
+				trace("OnDragDrop");
+				HandleDrop(event);
+				
+			}
+			//-----------------------------------------
+			
+			protected function HandleDrop(event:DragEvent):Boolean
+			{
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+				// don't allow more plugins if license says no
+				if(!FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_PLUGINS))
+				{
+					return false;
+				}				
+				if ( obj is File )
+				{
+					trace("OnDragDrop:File! = "+obj.name);
+					var newPlugin:FT_Plugin = new FT_Plugin(null);
+					// don't associate this plugin with this file.
+					// create another one in plugin directory
+					if(newPlugin.Read(obj as File, false))
+					{						
+						FT_PluginManager.GetInstance().Save(newPlugin);
+					}
+					return true; // handled
+				}
+				else if (obj is FT_Plugin && obj.isRemote)
+				{
+					// make a copy of the plugin from xml
+					FT_PluginManager.GetInstance().Save(new FT_Plugin(obj.ToXMLString()));
+					validateNow();
+					return true;
+					
+				}
+				return false; // not handled by this object
+			}
+			
+		//-------------------------------------
+			//TODO: Delete if not needed
+			protected function OnDragComplete(event:DragEvent):void
+			{				
+				trace("OnDragComplete");				
+			}
+			
+			//-----------------------------------------------
+			protected function OnDragOver(event:DragEvent):void
+			{
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+				
+				if(obj!=null )
+				{					
+					if( obj is File)
+					{																						
+						this.selectedIndex = this.calculateDropIndex(event);													
+					}
+					else
+					{
+						//TODO don't allow reorder/move of items inside list for now
+						//event.currentTarget.showDropFeedback(event);
+						//DragManager.showFeedback(DragManager.MOVE);						
+					}
+				}
+			}
+			//-----------------------------------------------
+			//TODO: 
+			/*
+			Default Drag Manager feedback is copy
+			When it is changed to move, the item is dropped in this control, even though preventdefault
+			is called.This is not what we need. Figure out a way to display nice feedback without 
+			causing the item to be dropped.Looks like feedback type link an copy do not 
+			result in item being dropped.
+			*/
+			protected function OnDragEnter(event:DragEvent):void
+			{
+				trace("OnDragEnter");
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+				// only allow remote plugins or files to be dropped
+				if(obj!=null)
+				{
+					if(m_DragHelper.DragObjectAllowed(obj) || (obj is FT_Plugin && obj.isRemote))
+					{						
+						DragManager.acceptDragDrop(event.currentTarget as UIComponent);		
+						DragManager.showFeedback(DragManager.LINK);
+					}
+					else
+					{
+						//only allow objects of type plugin to be dragged on	
+						trace("object type disallowed");
+					}
+				}
+								
+			}
+			//-------------------------------------------
+			public function FilterPlugins(event:SearchEvent):void
+			{
+				// reset to containers if query is empty
+				if(event.query == "")
+				{
+					this.dataProvider = GetContainerCollection();	
+					
+					//this.expandItem(dataProvider.getItemAt(0),true,false,true);
+					//expand items that were open
+					/*for(var i:int = 0; i < m_OpenItems.length;++i)
+					{
+						this.expandChildrenOf(dataProvider.getItemAt(0),true);						
+					}*/
+					if(m_OpenItems.length > 0 )
+					{
+						this.openItems = m_OpenItems;
+					}
+					
+					
+				}
+				else
+				{
+					dataProvider = null;
+					
+					var newDP:ArrayCollection=  new  ArrayCollection();
+					var seachResult:Array = new Array();
+					if(ZG_ArrayCollection.DeepSearch(GetContainerCollection(),
+														event.query,
+														ZG_PersistentObject.SRCH_TYPE_PARTIAL_NAME,
+														seachResult))
+																								
+					{
+						newDP.source = seachResult;
+					}
+					this.dataProvider = newDP;
+				}
+				// this is a magic call for expandItems
+				/*this.invalidateDisplayList();
+				this.validateSize(true);
+				this.validateNow();*/
+					
+			}
+			//--------------------------------------
+			protected function ExpandSavedContainers():void
+			{
+				
+			}
+			//-------------------------------------------
+			protected function PluginLabelFunc(item:Object):String 
+			{
+				// display repo version of the item
+				if(item is FT_Plugin )
+				{
+					//return (item.isRemote ? (item.name + "(" + item.serverAddr +")") : item.name);
+					//return (item.isRemote ? (item.name + " v " + item.repoRevision ) : item.name);
+					// for now dont do anything here
+					return (item.name);
+				}
+				return item.label;
+			}
+			//---------------------------------------
+			protected function GetContainerCollection():ArrayCollection
+			{
+				return FT_PluginManager.GetInstance().containerColl;
+			}
+			//---------------------------------------
+			protected function AddInsertPluginHandler():void
+			{
+				FT_PluginManager.GetInstance().addEventListener(FT_Events.FT_EVT_INSERT_PLUGIN,OnInsertPlugin);	
+			}	
+			//---------------------------------------------------------------------------------
+			protected function InsertContextMenus():void
+			{
+				//TODO: move into class tree	
+				this.contextMenu = new ContextMenu();
+				
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_NEW_PLUGIN,OnMenuItemSelect,true);// set the label
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_DELETE_PLUGIN,OnMenuItemSelect,true);// set the label
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_EDIT_PLUGIN,OnMenuItemSelect,true);// set the label
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_EXPORT_PLUGIN,OnMenuItemSelect,true);// set the label
+				
+				this.contextMenu.addEventListener(ContextMenuEvent.MENU_SELECT, OnContextMenuSelect);
+			}
+			//-------------------------------------------------------------------
+			protected function DataTipFunc(item:Object):String
+			{
+				
+				if(item !=null)
+				{
+					if(item is FT_Plugin)
+					{
+						return( "Description: " + item.description + "\n"+ 
+								"---------------------------------------\n" +
+								"Command:\n" + 
+								item.commandString);
+					}
+					else if (item is FT_PluginContainer)
+					{
+						return ZG_Utils.TranslateString("Action Category");
+					}
+				}				
+				return "";
+			}
+			//--------------------------------
+			// Opens item container, selects item and scrolls to it if necessary
+			public function BringItemIntoView(plugin:ZG_PersistentObject):void
+			{
+				
+				
+				var searchResult:Array = new Array();
+				if(ZG_ArrayCollection.DeepSearch(GetContainerCollection(),
+												plugin.guid,
+												ZG_PersistentObject.SRCH_TYPE_GUID,
+												searchResult))
+												
+				{
+					// there can be only one result
+					var foundObj:ZG_PersistentObject = searchResult[0];					
+					this.expandItem(foundObj.parentObj,true,false,true);
+					this.selectedItem = searchResult[0];
+					this.scrollToIndex(this.selectedIndex);
+				}
+			}
+			//------------------------------
+			//----------------------------------------------------
+			protected function OnClick(event:MouseEvent):void
+			{				
+				// detect a click outside all items and deselect everything
+				if(event.target is ListBaseContentHolder )
+				{
+					selectedItem = null;
+				}
+			}
+
+		]]>
+	</fx:Script>
+	
+</mx:Tree>

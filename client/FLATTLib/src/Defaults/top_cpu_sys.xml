@@ -1,0 +1,15 @@
+<FLATTPlugin category="Monitoring">
+  <GUID>e2a9d9e2f3df5203efd999f551d55e6b00f70b7f</GUID>
+  <Version>1.0</Version>
+  <Creator>FLATT Solutions</Creator>
+  <Name>Top cpu system</Name>
+  <Image/>
+  <Action>top -d 5 -b | awk '/Cpu/ {print substr($0, 19,3);fflush("")}'|nl -s "="</Action>
+  <Description>This is a sample of continuous output in line chart format</Description>
+  <ReturnData type="Line Chart">
+    <DataSeparator>space</DataSeparator>
+    <Description/>
+    <NumColumns>0</NumColumns>
+  </ReturnData>
+  <Transport>ssh</Transport>
+</FLATTPlugin>

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:DataGrid xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			 xmlns:s="library://ns.adobe.com/flex/spark" 
+			 xmlns:mx="library://ns.adobe.com/flex/mx" 
+			  creationComplete="OnInit()"
+				 editable="true"
+				
+		 	borderVisible="false">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	
+	
+	<fx:Style>
+		.centered 
+		{
+			text-align: center;
+			fontWeight:bold;
+		}
+	</fx:Style>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import FLATTPlugin.FT_UIParam;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.*;
+			import mx.events.FlexEvent;
+			
+			import spark.components.*;
+			import spark.events.DropDownEvent;
+		
+			public var m_UIParamTypes:ArrayCollection =  new ArrayCollection(new Array("Checkbox","Edit Field"));
+			//-----------------------------------------------
+			private function OnInit():void
+			{
+				this.dataProvider = new ArrayCollection();
+			}
+			//-----------------------------------------------
+			public function OnListOpen(event:DropDownEvent):void
+			{
+				DropDownList(event.target).setStyle("useRollOver",false);  
+			}
+			
+			//-----------------------------------------------
+			public function OnListInit(event:FlexEvent):void
+			{
+				// get dropdown list object from event.
+				// set its provider
+				// assign the type to the uiparam object from list.selectedItem
+				var ddList:DropDownList = DropDownList(event.target);
+				if(ddList!=null)
+				{
+					ddList.dataProvider = m_UIParamTypes;
+					// find items in grid without a type and assign the type
+					
+					if(this.selectedItem!=null)
+					{
+						FT_UIParam(this.selectedItem).type = ddList.selectedItem;
+					}
+				}
+				
+			}
+			//-----------------------------------------------
+			
+			public function OnListClose(event:DropDownEvent):void
+			{
+				var i:int;
+				for( i= 0; i < this.selectedItems.length;++i)
+				{
+					var cur:FT_UIParam = this.selectedItems[i] as FT_UIParam;
+					if( cur!=null )
+					{
+						// dropdown list is column 1
+						cur[columns[1].dataField] = DropDownList(event.target).selectedItem						
+					}       			
+				}
+			}
+			//---------------------------------------------------------
+			public function Reset():void
+			{
+				this.dataProvider = null;
+			}
+			//--------------------------------------------------------
+			// return true if has items in list
+			public function SetUIParams(params:Array):Boolean
+			{
+				this.dataProvider = null;
+				this.dataProvider = new ArrayCollection(params);
+				return ( params !=null && params.length > 0);
+			}
+			//-------------------------------------------------
+			public function GetUIParams():Array
+			{
+				return this.dataProvider.toArray();
+			}
+			//----------------------------------------------
+			public function AddUIParam():void
+			{
+				var param:FT_UIParam = new FT_UIParam();
+				param.id = new Number(( this.dataProvider.length >0? dataProvider.length+1 : 1)).toString();
+				
+				this.dataProvider.addItem(param);
+				this.selectedIndex = dataProvider.length-1; // select the newly added item
+				ZG_Utils.ZG_DispatchEvent(this,FT_Events.FT_EVT_UI_PARAM_ADDED,param);
+			}
+			
+			//----------------------------------------------
+			public function RemoveUIParam():void
+			{
+				var param:FT_UIParam = this.selectedItem as FT_UIParam;
+				if( param !=null )
+				{
+					this.dataProvider.removeItemAt(this.dataProvider.getIndexOf(param));
+					ZG_Utils.ZG_DispatchEvent(this,FT_Events.FT_EVT_UI_PARAM_REMOVED,param);
+					this.validateNow();
+				}			
+			}
+			
+				
+		]]>
+	</fx:Script>
+	<!--TODO: fix data tips-->
+	<mx:columns>      
+		
+		<mx:DataGridColumn dataField="id"  
+						   fontWeight="normal"
+						   headerStyleName="centered"
+						   headerText="ID"
+						   textAlign="center"  
+						   width="20"
+						   editable="true"
+						   
+						   />
+		
+		
+		<mx:DataGridColumn dataField="type"                   
+						   textAlign="center"
+						   headerText="Type"
+						   headerStyleName="centered"   
+						   editable="false"						   
+						  
+						   >
+			
+			
+			<mx:itemRenderer>
+				<fx:Component>
+					<s:MXDataGridItemRenderer>
+						
+						<s:DropDownList 	
+						 
+						 selectedIndex="0"										
+						 open="outerDocument.OnListOpen(event)"						
+						 initialize="outerDocument.OnListInit(event)"												  					 							  							    
+						 close="outerDocument.OnListClose(event)"
+						 left="0" right="0"  top="0"
+					/>
+					</s:MXDataGridItemRenderer>
+				</fx:Component>
+			</mx:itemRenderer>
+			
+			                            
+		</mx:DataGridColumn>
+		
+		
+		<mx:DataGridColumn dataField="value"             
+						   headerStyleName="centered"
+						   headerText="Value"
+						   textAlign="center"   
+						   editable="true"
+						   fontWeight="normal"
+						  
+						   dataTipField="Typically a flag or option passed to a unix command. If blank - user specifies the value"
+						   />
+		
+		<mx:DataGridColumn dataField="label"                   
+						   textAlign="center"
+						   headerStyleName="centered"  
+						   headerText="Label"   
+						   editable="true"
+						   fontWeight="normal"
+						 
+						   dataTipField="The name of a UI element describing its function"
+						   />
+		
+	</mx:columns>   
+</mx:DataGrid>

@@ -1,0 +1,15 @@
+<FLATTPlugin category="Monitoring">
+  <GUID>927245b2139bd679a75d982eba2fc34cc1d762e0</GUID>
+  <Version>1.0</Version>
+  <Creator/>
+  <Name>Top cpu user</Name>
+  <Image/>
+  <Action>top -d 3 -b | awk '/Cpu/ {print substr($0, 10,3);fflush("")}'|nl -s"="</Action>
+  <Description/>
+  <ReturnData type="Line Chart">
+    <DataSeparator>space</DataSeparator>
+    <Description/>
+    <NumColumns>0</NumColumns>
+  </ReturnData>
+  <Transport>ssh</Transport>
+</FLATTPlugin>

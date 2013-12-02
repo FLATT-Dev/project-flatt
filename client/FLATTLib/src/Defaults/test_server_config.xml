@@ -1,0 +1,31 @@
+<FLATTPlugin category="Samples">
+  <GUID>17cea36a6eead500815484b9abe14de56b3afd77</GUID>
+  <Version>1.0</Version>
+  <Creator>FLATT Solutions</Creator>
+  <Name>Test server config</Name>
+  <Image/>
+  <Action>echo ' arp is at $ARP'echo 'top is at $TOP 'echo 'sudo is at $SUDO'$NETSTAT -a</Action>
+  <Description>This action tests server configuration parameters</Description>
+  <ReturnData type="Text">
+    <DataSeparator>space</DataSeparator>
+    <Description/>
+    <NumColumns>0</NumColumns>
+  </ReturnData>
+  <Transport>ssh</Transport>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+</FLATTPlugin>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flexLibProperties includeAllClasses="true" useMultiPlatformConfig="false" version="3">
+  <includeClasses>
+    <classEntry path="FLATTPlugin.FT_PluginManager"/>
+    <classEntry path="FLATTPlugin.FT_Plugin"/>
+    <classEntry path="Utility.FT_Strings"/>
+    <classEntry path="Utility.FT_Events"/>
+    <classEntry path="FLATTPlugin.FT_Wizard"/>
+    <classEntry path="FLATTPlugin.FT_WizardPage"/>
+    <classEntry path="FLATTPlugin.FT_WizardBase"/>
+    <classEntry path="Exec.FT_PluginExec"/>
+    <classEntry path="TargetHostManagement.FT_TargetHost"/>
+    <classEntry path="FLATTPlugin.FT_PluginContainer"/>
+    <classEntry path="FLATTPlugin.FT_PluginOrganizer"/>
+    <classEntry path="Application.FT_Application"/>
+    <classEntry path="Network.FT_Connection"/>
+    <classEntry path="Network.FT_SocketConnection"/>
+    <classEntry path="Network.FT_ConnectionFactory"/>
+    <classEntry path="FLATTPlugin.FT_ReturnDataInfo"/>
+    <classEntry path="FLATTPlugin.FT_LinechartPlotPoint"/>
+    <classEntry path="FLATTPlugin.FT_PluginResultFactory"/>
+    <classEntry path="FLATTPlugin.FT_TableResult"/>
+    <classEntry path="FLATTPlugin.FT_LinechartResult"/>
+    <classEntry path="FLATTPlugin.FT_ProxyQuitter"/>
+    <classEntry path="FLATTPlugin.FT_ColumnChartResult"/>
+    <classEntry path="TargetHostManagement.FT_TargetHostManager"/>
+    <classEntry path="FLATTPlugin.FT_Task"/>
+    <classEntry path="FLATTPlugin.FT_PluginRef"/>
+    <classEntry path="FLATTPlugin.FT_TaskPluginExec"/>
+    <classEntry path="Repository.FT_RepoManager"/>
+    <classEntry path="Network.FT_UrlLoader"/>
+    <classEntry path="FLATTPlugin.FT_RepoContainer"/>
+    <classEntry path="Network.FT_POSTConnection"/>
+    <classEntry path="Network.FT_SSLConnection"/>
+    <classEntry path="FLATTPlugin.FT_ReturnDataFIFO"/>
+    <classEntry path="Licensing.FT_License"/>
+    <classEntry path="Exec.FT_ExecRequest"/>
+    <classEntry path="HostConfiguration.FT_HostConfigManager"/>
+    <classEntry path="HostConfiguration.FT_HostConfig"/>
+    <classEntry path="Scheduling.FT_Schedule"/>
+    <classEntry path="Scheduling.FT_ScheduleManager"/>
+  </includeClasses>
+  <includeResources/>
+  <namespaceManifests/>
+</flexLibProperties>

@@ -1,0 +1,512 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Panel xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		width="100%" height="100%" title="Search" xmlns:CustomControls="CustomControls.*"
+		 creationComplete="OnInit()"
+		
+		>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<fx:XML format="e4x" id="m_RepoCmdButtonItems">
+			<root>
+				<menuitem label="Update" enabled="true" />
+				<menuitem label="Commit" enabled="true"  />
+				<menuitem label="Delete" enabled="true" />
+				<menuitem label="Revert" enabled="true" />
+				<menuitem label="Diff" enabled="true" />
+				<menuitem label="Log" enabled="true" />				
+				<menuitem label="Status" enabled="true" />				
+			</root>
+		</fx:XML>
+	</fx:Declarations>
+	
+	<fx:Style>
+		.menuItemStyle 
+		{
+			textAlign: left;
+			fontWeight: normal;
+			fontSize:12
+		}
+	</fx:Style>
+	
+	<fx:Script>
+		<![CDATA[
+			import Application.*;
+			
+			import CustomControls.SearchEvent;
+			
+			import DesktopApp.*;
+			
+			import FLATTPlugin.*;
+			import FLATTPlugin.FT_RepoContainer;
+			
+			import Licensing.*;
+			
+			import Repository.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.UserObjects.ZG_PersistentObject;
+			import com.ZG.Utility.*;
+			import mx.events.*;
+			import mx.controls.Menu;
+			import mx.collections.XMLListCollection;
+		
+			protected var m_LicenseDlgShown:Boolean;
+			protected var m_PendingItem:Object;
+			private var MENUID_REPO_CMD:String  	= "0";
+			private var STR_UPDATE:String=ZG_Utils.TranslateString("Update");
+			private var STR_COMMIT:String=ZG_Utils.TranslateString("Commit");
+			private var STR_DIFF:String=ZG_Utils.TranslateString("Diff");
+			private var STR_LOG:String=ZG_Utils.TranslateString("Log");
+			private var STR_STATUS:String=ZG_Utils.TranslateString("Status");
+			private var STR_DELETE:String=ZG_Utils.TranslateString("Delete");
+			private var STR_REVERT:String=ZG_Utils.TranslateString("Revert");
+		
+			private var m_RepoOp:String="";
+			
+			protected function OnInit():void
+			{				
+				FT_RepoManager.GetInstance().addEventListener(FT_Events.FT_EVT_REPO_OP_START,OnRepoOpStart);
+				FT_RepoManager.GetInstance().addEventListener(FT_Events.FT_EVT_REPO_OP_END,OnRepoOpEnd);
+				FT_RepoManager.GetInstance().addEventListener(FT_Events.FT_EVT_REPO_FEEDBACK,OnRepoFeedback);
+				FT_RepoManager.GetInstance().addEventListener(FT_LicenseManager.FT_EVT_LICENCE_MGR,OnLicenseCheck);
+				//m_RepoTree.addEventListener(FT_Events.FT_EVT_PLUGIN_UPLOADED,OnPluginUploaded);
+				//m_RepoTree.addEventListener(MouseEvent.CLICK,OnTreeClick);
+				m_RepoTree.addEventListener(FT_Events.FT_EVT_REPO_PUGIN_DROP,OnPluginDropped);
+				// create repo command button and menus
+				CreateRepoPopupButton();				
+				callLater(FT_RepoManager.GetInstance().RepoAction,new Array(FT_RepoManager.REPO_ACTION_LOAD,null,new Array([true])));
+			}
+			//--------------------------------------------
+			protected function CreateRepoPopupButton():void
+			{
+				m_RepoCmdButton.popUp = CreateMenu(MENUID_REPO_CMD, m_RepoCmdButton,  m_RepoCmdButtonItems);	
+			}
+			//--------------------------------------
+			private function CreateMenu(id:String,btn:DisplayObject, menuData:Object):Menu
+			{
+				var ret:Menu = Menu.createMenu(parent,menuData,false);
+				ret.labelField = "@label";
+				ret.id = id;
+				//ret.iconFunction = MenuItemIconFunc;
+				ret.addEventListener(MenuEvent.ITEM_CLICK,OnMenuItemClick);
+				return ret;
+			}
+			//-----------------------------------------------
+			private function OnMenuItemClick(event:MenuEvent):void
+			{
+				var menuLabel:String = event.item.@label;
+				m_RepoOp = menuLabel; // save the last repo operation
+				switch(menuLabel)
+				{
+					case STR_UPDATE:
+						OnRefresh(null);
+						break;
+					case STR_COMMIT:
+					case STR_REVERT:
+						HandleCommitRevert(menuLabel);
+						break;
+					case STR_DIFF:
+						this.HandleDiff();
+						break;
+					case STR_LOG:
+						HandleLog();
+						break;
+					case STR_STATUS:
+						HandleStatus();
+						break;
+					case STR_DELETE:
+						HandleDelete();
+						break;
+				}
+			}
+			protected function OnRefresh(event:MouseEvent):void
+			{
+				
+				/* Too messy to pass the specific Action or directory path.
+					Always pass null indicating a refresh of everything
+				*/
+				// supress first automatic update when manually updating
+				FT_RepoManager.GetInstance().cancelStartupUpdate = true;
+				var repo:FT_PluginRepository = m_RepoTree.RepoFromSelectedItem();
+				
+				// null repo means initial fetch of repository where repo object is not created yet
+				// for now update all repo directories not just a selected one
+				/*if(repo!=null)
+				{
+					fileList = m_RepoTree.FilePathFromSelectedItem();	
+				}*/
+				m_ProgressLabel.text = "Fetching Repositories...";
+				// when called too early, on slow machines the server takes a long time to come up and connection fails
+				// try to defer a bit hoping that it's enough time for the server to start up
+				callLater(FT_RepoManager.GetInstance().RepoAction,new Array(FT_RepoManager.REPO_ACTION_LOAD,repo,null));
+				//FT_RepoManager.GetInstance().RepoAction(FT_RepoManager.REPO_ACTION_LOAD,repo,null);
+			}
+			//-------------------------------------
+			
+			//---------------------------------------
+			protected function OnRepoOpStart(evt:Event):void
+			{
+				m_FeedbackRT.text = "";				
+				m_ProgressLabel.visible = m_Spinner.visible = true;
+				m_Spinner.play();
+				UpdateCmdButtonLabel(true);				
+			}
+			//-------------------------------------
+			private function UpdateCmdButtonLabel(repoInProgress:Boolean):void
+			{
+				var selectedItem:Object = m_RepoTree.selectedItem;
+				m_RepoCmdButton.label= repoInProgress? "Cancel" :"Commands";
+				
+				/*m_RefreshBtn.label = (shouldEnable ? ZG_Utils.TranslateString("Update") : ZG_Utils.TranslateString("Cancel"));	
+				m_DiffBtn.enabled = m_LogBtn.enabled = (shouldEnable ? m_RepoTree.selectedItem!=null : shouldEnable);
+				m_CommitBtn.enabled = (shouldEnable ? ShouldEnableCommit(selectedItem) : shouldEnable);
+				// TODO: more controls here*/
+			}
+			//----------------------------------------------
+			private function ShouldEnableCommit(item:Object):Boolean
+			{
+				// easy case - nothing is selected
+				if( item == null )
+				{
+					return false;
+				}
+				if(item is FT_PluginContainer)
+				{
+					var children:Array = item.GetChildrenArray();
+					
+					for(var i:int = 0; i < children.length; ++i)
+					{
+						if(children[i].dirty)
+						{
+							return true;
+						}	
+					}
+				}
+				else
+				{
+					//single pluigin
+					return (item.dirty)
+				}
+				return false;
+			}
+			//---------------------------------------------
+			public function OnRepoOpEnd(evt:Event):void
+			{
+				m_ProgressLabel.visible = m_Spinner.visible=false;
+				m_ProgressLabel.text = "";
+				m_Spinner.stop();
+				m_FeedbackRT.text += "Repository Operation completed";
+				UpdateCmdButtonLabel(false);				
+				UpdatePendingItem();
+				//TODO: If there is data to display - display it in the console window
+			}
+			//---------------------------------------------
+			protected function OnRepoFeedback(evt:ZG_Event):void
+			{
+				m_FeedbackRT.text+=(evt.data as String)+"\n";
+			}
+			//---------------------------------------------
+			/*protected function OnActionAdded(evt:ZG_Event):void
+			{
+				if(evt.xtraData[0] == ZG_Strings.STR_SUCCESS)
+				{
+					OnRefresh(null);
+				}
+				Alert.show(evt.data as String,"Plugin Upload");
+			}*/
+			//-------------------------------------------------			
+			protected function OnLicenseCheck(evt:ZG_Event):void
+			{
+				if(!m_LicenseDlgShown)
+				{					
+					FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_REMOTE_PLUGINS,evt.data as int,null,this);
+					m_LicenseDlgShown = true; // show only once
+				}				
+			}
+			//--------------------------------------
+			protected function OnBtnClick(evt:MouseEvent):void
+			{
+				var curBtn:PopUpButton = evt.currentTarget as PopUpButton;
+				if(curBtn!=null)
+				{
+					if(curBtn.label=="Cancel")
+					{
+						HandleRefresh()
+					}
+					/*switch(curBtn.id)
+					{
+						case "m_RefreshBtn":
+							HandleRefresh();
+							break;
+						case "m_DiffBtn":
+							HandleDiff();
+							break;
+						case "m_LogBtn":
+							HandleLog();
+							break;
+						case "m_CommitBtn":
+							HandleCommit();
+							break;
+					}*/
+				}
+			}
+			//--------------------------------------------
+			private function CommonRepoAction(actionType:int):void
+			{
+				var repo:FT_PluginRepository = m_RepoTree.RepoFromSelectedItem();
+				var fileList:Array = new Array();			
+				if(repo!=null)
+				{
+					
+					fileList = m_RepoTree.FileListFromSelectedItem();
+					// if no file list - use repo file path.
+					// the operation will be performed on the top repo directory
+					if(fileList.length == 0)
+					{
+						fileList.push(repo.filePath);
+					}
+					/*var filePath:String = m_RepoTree.FilePathFromSelectedItem();	
+					if(ZG_StringUtils.IsValidString(filePath))
+					{
+						
+						fileList.push(filePath);
+					}
+					else
+					{
+						// if item does not have a file path set - use the repo path
+						// backend needs a path 
+						fileList.push(repo.filePath);
+					}*/
+					FT_RepoManager.GetInstance().RepoAction(actionType,repo,fileList);
+				}		
+			}
+			//--------------------------------------------
+			private function HandleDiff():void
+			{				
+				m_ProgressLabel.text = "Diffing...";
+				CommonRepoAction(FT_RepoManager.REPO_ACTION_DIFF);							
+			}
+			//--------------------------------------------
+			private function HandleLog():void
+			{
+				m_ProgressLabel.text = "Getting log...";
+				CommonRepoAction(FT_RepoManager.REPO_ACTION_LOG);
+			}
+			//--------------------------------------------
+			private function HandleCommitRevert(action:String):void
+			{
+				m_PendingItem = m_RepoTree.selectedItem;
+				
+				m_ProgressLabel.text = (action == STR_COMMIT ? "Committing changes..." : "Reverting changes");
+				CommonRepoAction(action == STR_COMMIT ? FT_RepoManager.REPO_ACTION_COMMIT: FT_RepoManager.REPO_ACTION_REVERT);
+			}
+			//-----------------------------------------------------------------
+			private function HandleRefresh():void
+			{
+				if(!FT_RepoManager.GetInstance().CancelRepoAction())
+				{
+					OnRefresh(null);
+				}
+			}
+			//----------------------------------------------------
+			/*private function OnTreeClick(evt:MouseEvent):void
+			{
+				UpdateButtons(true);
+			}*/
+			//-----------------------------------------
+			private function OnPluginDropped(evt:ZG_Event):void
+			{
+				// right now only a drop on repo itself is allowed
+				var repo:FT_PluginRepository = m_RepoTree.RepoFromSelectedItem();				
+				if(repo!=null)
+				{
+					var params:Array = new Array();					
+					params.push(m_RepoTree.selectedItem);
+					params.push(evt.data);
+					FT_RepoManager.GetInstance().RepoAction(FT_RepoManager.REPO_ACTION_ADD,repo,params);					
+				}
+			}
+			//--------------------------------------------
+			private function UpdatePendingItem():void
+			{
+				
+				if(m_PendingItem!=null )
+				{
+					if(m_PendingItem is FT_Plugin)
+					{
+						if(m_RepoOp == STR_REVERT && FT_Plugin(m_PendingItem).dirty)
+						{
+							// reread the plugin if the repo operation was revert - and there are local changes
+							FT_Plugin(m_PendingItem).Refresh();
+							//  also update plugin category as it may've changed
+							FT_Plugin(m_PendingItem).UpdateCategory(FT_RepoManager.GetInstance().reposColl);				
+						}
+						FT_Plugin(m_PendingItem).dirty = false;						
+					}
+					else if (m_PendingItem  is FT_PluginContainer)
+					{
+						if(m_RepoOp == STR_REVERT)
+						{
+							FT_PluginContainer(m_PendingItem).RefreshChildren(false,true,FT_RepoManager.GetInstance().reposColl);
+						}
+						else
+						{
+							FT_PluginContainer(m_PendingItem).UpdateChildrenProperty("dirty",false);
+						}
+					}
+					else if ( m_PendingItem is FT_RepoContainer )
+					{
+						ClearRepoDirtyFlag(m_PendingItem as FT_RepoContainer);
+					}
+					m_PendingItem = null;
+				}
+			}
+			//--------------------------------------------
+			// clear dirty flag on all containers in the repo
+			private function ClearRepoDirtyFlag(repoCont:FT_RepoContainer):void
+			{
+				var repoChildren:Array = repoCont.GetChildrenArray();
+				for(var i:int = 0; i < repoChildren.length;++i)
+				{
+					var cur:ZG_PersistentObject = repoChildren[i];
+					if(m_RepoOp == STR_REVERT)
+					{
+						cur.RefreshChildren(false,true,FT_RepoManager.GetInstance().reposColl);// don't force refresh, clear dirty flag
+					}
+					else
+					{
+						cur.UpdateChildrenProperty("dirty",false);
+					}
+				}
+			}
+			//---------------------------------------------
+			/*private function MenuItemIconFunc(item:Object):Class
+			{
+				return FT_DesktopApplication.ICON_HOST;//TODO
+			}*/
+			//------------------------------------------------
+			private function OnPopupOpen(event:DropdownEvent):void
+			{
+				var button:PopUpButton = event.currentTarget as PopUpButton;
+				if(button !=null)
+				{
+					DisEnableMenuItems(button.popUp as Menu);
+				}				
+			}
+			//-----------------------------
+			protected function DisEnableMenuItems(menu:Menu):void
+			{
+				// enable - disable menu items based on whether the row in corresponding table is selected
+				var i:int;
+				//var curItem:Object = menu.dataProvider.getItemAt(i);
+				var xmlItems:XMLListCollection = menu.dataProvider as XMLListCollection;
+				for(i = 0; i< xmlItems.length;++i)
+				{
+					var curItem:XML = xmlItems.getItemAt(i) as XML;
+					var s:String = curItem.@label;
+					//update menu item is oalways enabled 
+					// others are only enabled if something is selected
+					// if spinner is playing (repo op in progress) - everything is disabled					
+					if(m_Spinner.isPlaying)
+					{
+						curItem.@enabled = false;
+					}
+					else
+					{
+						if(curItem.@label == STR_UPDATE)
+						{
+							curItem.@enabled = 	true;				
+						}
+						/*else if (curItem.@label == STR_DELETE)
+						{
+							curItem.@enabled = (m_RepoTree.selectedItem!=null && m_RepoTree.selectedItem is FT_Plugin);
+						}*/
+						else
+						{
+						
+							curItem.@enabled = (m_RepoTree.selectedItem!=null);
+						}
+					}
+					
+				}
+				
+			}
+			//-------------------------------------------------------------
+			private function HandleStatus():void
+			{
+				m_ProgressLabel.text = "Getting Status";
+				CommonRepoAction(FT_RepoManager.REPO_ACTION_STATUS);
+			}
+			//-------------------------------------------------------------
+			private function HandleDelete():void
+			{
+				m_ProgressLabel.text = "Deleting...";
+				var repo:FT_PluginRepository = m_RepoTree.RepoFromSelectedItem();				
+				if(repo!=null)
+				{
+					var params:Array = new Array();					
+					params.push(m_RepoTree.selectedItem);
+					FT_RepoManager.GetInstance().RepoAction(FT_RepoManager.REPO_ACTION_REMOVE,repo,params);					
+				}
+			}
+			//---------------------------------------------------
+			
+
+		]]>
+	</fx:Script>
+	
+	
+	
+	<CustomControls:SearchField height="20" id="m_SearchField"
+								hint="Search for plugin..." delay="50" cornerRadius="3" 
+								search="{m_RepoTree.FilterPlugins(event)}" backgroundAlpha="0.9" 
+								toolTip="Search for Actions"
+								borderVisible="false" dropShadowVisible="false" left="60" top="-26" right="5">
+	</CustomControls:SearchField>
+	
+	<mx:VDividedBox left="0" right="0" top="0" bottom="39" borderVisible="true">
+		
+	<s:VGroup  width="100%" height="80%">
+		<CustomControls:FT_RepoTree 
+			width="100%" height="100%"  id="m_RepoTree" />
+	</s:VGroup>
+	
+	<s:VGroup width="100%" height="20% " minHeight="60" >	
+		<s:BorderContainer width="100%" height="100%" top="0" left="0" borderVisible="true">
+			<s:Scroller width="100%" height="100%">
+				<s:Group>
+					<s:layout>
+						<s:VerticalLayout horizontalAlign="justify"
+										  clipAndEnableScrolling="true" />
+					</s:layout>
+					<s:RichEditableText id="m_FeedbackRT" left="0" right="0" top="0" bottom="0"
+										editable="false" multiline="true" paddingLeft="5" paddingTop="5">	
+					</s:RichEditableText>
+				</s:Group>
+			</s:Scroller>
+			
+		</s:BorderContainer>
+	
+	</s:VGroup>
+	</mx:VDividedBox>
+	
+	<s:BorderContainer height="40" left="0" right="0" bottom="0"   borderColor="#696969" borderVisible="true">
+		<CustomControls:Spinner  size="16"  id="m_Spinner"  left="13" bottom="14" visible="true"/>
+		<s:Label id="m_ProgressLabel" visible="true" x="41" bottom="12" width="190" height="11" text="Fetching repositories..."/>
+				
+		<mx:PopUpButton id="m_RepoCmdButton" visible="true" right="9" bottom="8.5"
+						 fontWeight="bold"
+						 popUpStyleName="menuItemStyle"
+						label="" click="OnBtnClick(event)" icon="@Embed('assets/repo-18.png')"
+						open="OnPopupOpen(event)" toolTip=""/>
+		<s:Button label="Update" id="m_RefreshBtn" right="9" bottom="8.5" click="OnBtnClick(event)" toolTip="" visible="false"/>
+		<s:Button label="Diff" id="m_DiffBtn" right="85" bottom="8.5" click="OnBtnClick(event)" toolTip="" visible="false"/>
+		<s:Button label="Log" id="m_LogBtn" right="160" bottom="8.5" click="OnBtnClick(event)" toolTip="" visible="false"/>
+		<s:Button label="Commit" id="m_CommitBtn" right="236" bottom="8.5" click="OnBtnClick(event)" toolTip="" visible="false"/>
+		
+	</s:BorderContainer>
+</s:Panel>

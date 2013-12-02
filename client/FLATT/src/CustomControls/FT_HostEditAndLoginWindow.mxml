@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" 
+				layout="absolute" width="410" height="230" title="Edit Host" 
+				creationComplete="OnInit()">
+	<fx:Script>
+		<![CDATA[
+			import spark.events.TextOperationEvent;
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import Application.*;
+			
+			import FLATTPlugin.*;
+			import TargetHostManagement.*;
+			import Utility.*;
+			import Licensing.*;
+		
+			import DesktopApp.*;
+			
+			
+			import com.ZG.Prefs.*;
+			import com.ZG.Utility.*;
+			import com.ZG.Events.*;
+			import mx.collections.*;
+			import mx.managers.PopUpManager;
+			import spark.events.*;
+			
+			private var m_HostObj:FT_TargetHost = null;
+			private var _loginMode:Boolean;
+			private var _plugin:FT_Plugin;
+			private var _hiddenItem:FormItem;
+			//---------------------------------------------
+			private function OnInit():void
+			{
+				// Add the correct display object.
+				// if doing login - it's a combo, otherwise it's
+				this.removeChild(m_hostsCB);
+				this.removeChild(ti_Host);
+				
+				var dispObj:DisplayObject = (_loginMode ? m_hostsCB : ti_Host);
+				dispObj.visible=true;
+				fi_HostContainer.addChild(dispObj);
+							
+				m_HostEditorForm.defaultButton = m_OkButton;	
+				if(_loginMode)
+				{
+					SetHostFromList();
+					title = "Select Host or Group to Execute on";
+				}
+				else
+				{
+					// in edit mode only enable OK button when there is host name
+					OnTextEditChange(null);	
+					title = "Edit Host or Group";
+				}
+			
+			}			
+			//---------------------------------------------------
+			public function SetCurrentHost(host:FT_TargetHost):void
+			{
+				if(host !=null)
+				{				
+					m_HostObj = host;
+					ti_Host.text = m_HostObj.isContainer ? m_HostObj.name : m_HostObj.host;
+					fi_Username.text = m_HostObj.username;
+					fi_AuthField.text = m_HostObj.password;
+					// TODO: ssh key
+					if (m_HostObj.isContainer)
+					{
+						fi_HostContainer.label="Name";
+						this.title = "Edit Group";
+					}
+				}
+				// always init the auth method even if host is null
+				InitAuthMethod();
+				OnTextEditChange(null);
+			}
+			//------------------------------------------
+			private function OnOKButtonClick():void
+			{
+				if(loginMode)
+				{
+					ProcessLogin();
+				}
+				else
+				{
+					SaveHostChanges();
+				}
+			}
+			// that's where we copy all values from the form into  the host obj
+			//--------------------------------------------	
+			private function SetHostValues():void
+			{
+				if(m_HostObj == null )
+				{
+					m_HostObj = new FT_TargetHost();
+				}
+				
+				if(m_HostObj.isContainer)
+				{
+					m_HostObj.name =  ti_Host.text;
+				}
+				else
+				{
+					m_HostObj.host = ti_Host.text;
+				}
+				m_HostObj.username = fi_Username.text;
+				
+				// now adjust selected auth method
+				if(m_AuthMetodList.selectedIndex == FT_TargetHost.AUTH_METHOD_PASSWD)
+				{
+					m_HostObj.password = fi_AuthField.text;
+					// clear key file value
+					m_HostObj.sshKey = "";
+				}
+				else
+				{
+					m_HostObj.sshKey = fi_AuthField.text;
+					// clear key password value
+					m_HostObj.password = "";
+				}
+			}
+			//-----------------------------------
+			private function SaveHostChanges():void 
+			{
+				// set all values that user modified				
+				SetHostValues();
+				ZG_Utils.ZG_DispatchEvent(this,FT_Events.FT_EVT_ADD_HOST,m_HostObj);
+				//  remove pop up.*/
+				PopUpManager.removePopUp(this);				
+			}
+			// public function
+			protected function OnTextEditChange(event:TextOperationEvent):void
+			{
+				if(_loginMode)
+				{
+					// either data provided has items or an text was entered in the input field of the combo box
+					m_OkButton.enabled = ((m_hostsCB.dataProvider!=null && m_hostsCB.dataProvider.length > 0 ) || m_hostsCB.textInput.text!="");
+				}
+				else
+				{
+					m_OkButton.enabled =(ti_Host.text!="" );
+				}
+			}
+			//----------------------------------------
+			protected function OnListSelChange(event:IndexChangeEvent):void
+			{
+				
+				AdjustUIForAuthMethod();				
+			}
+			//-----------------------------------------------------
+			public function InitAuthMethod():void
+			{
+				//If the proxy panel never was shown proxy type list is null, so check
+				if(m_AuthMetodList!=null)
+				{
+					if(m_AuthMetodList.dataProvider == null)
+					{
+						m_AuthMetodList.dataProvider = new ArrayCollection(new Array(
+							ZG_Utils.TranslateString("Password"),
+							ZG_Utils.TranslateString("Key File")));
+						
+					}				
+					m_AuthMetodList.selectedIndex = (m_HostObj == null ? FT_TargetHost.AUTH_METHOD_PASSWD: m_HostObj.authMethod);
+					AdjustUIForAuthMethod();
+				}				
+			}
+			//---------------------------------------------			
+			private function AdjustUIForAuthMethod():void
+			{				
+				// need to set this even if the host may be null				
+				switch(m_AuthMetodList.selectedIndex)
+				{
+					case FT_TargetHost.AUTH_METHOD_PASSWD:
+						fi_AuthField.text = m_HostObj == null ? "" : m_HostObj.password;
+						m_BrowseButton.visible = false;
+						m_AuthField.label = "Password";	
+						fi_AuthField.displayAsPassword = true;
+						break;
+					case FT_TargetHost.AUTH_METHOD_KEYFILE:
+						fi_AuthField.text = m_HostObj == null ? "" : m_HostObj.GetSshKeyPath();
+						m_BrowseButton.visible = true;
+						fi_AuthField.displayAsPassword = false;
+						m_AuthField.label = "Key File";					
+						break;
+				}
+				
+			}
+			//---------------------------------
+			private function OnBrowse(event:MouseEvent):void
+			{
+				var fileBrowser:ZG_FileUtils = new ZG_FileUtils();
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_COMPLETE,OnReadFileComplete);
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_CANCEL,OnReadFileComplete);		
+				fileBrowser.BrowseReadFile("","",true);// all file types, only file path			
+			}
+			//--------------------------------------------------------
+			private function OnReadFileComplete(evt:ZG_Event):void
+			{								
+				if(evt.type == ZG_Event.EVT_READ_FILE_COMPLETE)
+				{			
+					if(evt.data!=null)
+					{	
+						var selectedFile:File = evt.data as File;
+						if(selectedFile!=null)
+						{	
+							fi_AuthField.text = selectedFile.nativePath;
+						}
+						
+					}
+				}				
+			}
+			//------------------------------------------
+			public function get loginMode():Boolean
+			{
+				return _loginMode;
+			}
+
+			public function set loginMode(value:Boolean):void
+			{
+				_loginMode = value;
+				
+			}
+
+			//--------------------------------------------
+			public function SetPlugin(plugin:FT_Plugin):void
+			{
+				_plugin = plugin;
+			}
+			//--------------------------------------------	
+			private function SetHostFromList():void
+			{
+				
+				m_hostsCB.dataProvider = new ArrayCollection(FT_Prefs.GetInstance().GetSavedHostsList());
+				m_hostsCB.selectedIndex = FT_Prefs.GetInstance().GetLastHostIndex();
+				
+				if(!FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_HOSTS,null,m_hostsCB.dataProvider,null,false))
+				{
+					// if no more hosts are allowed by the license - make the combo box not editable
+					m_hostsCB.textInput.editable = false;
+					m_hostsCB.toolTip = ZG_Utils.TranslateString("Adding hosts is disabled due to license restrictions");
+				}
+				m_HostObj = m_hostsCB.selectedItem;
+				m_AuthMetodList.selectedIndex = (m_HostObj!= null? m_HostObj.authMethod : FT_TargetHost.AUTH_METHOD_PASSWD);
+				SetCurrentHost(m_HostObj);
+				
+			}
+			//--------------------------------------------	
+			private function ProcessLogin():void 
+			{				
+				var selectedIndex:int = m_hostsCB.selectedIndex; 
+				m_HostObj  = m_hostsCB.selectedItem as FT_TargetHost;
+				// this means user entered a new host name in the combo
+				if(m_HostObj == null )
+				{					
+					m_HostObj = new FT_TargetHost();
+					// add host group to provider array
+					m_hostsCB.dataProvider.addItem(m_HostObj);
+					selectedIndex = 0;//m_hostsCB.dataProvider.length -1;	
+					// set text input wit the new host address
+					ti_Host.text = m_hostsCB.textInput.text;
+				}
+				//set all hosts values from ui
+				SetHostValues();
+		
+				this.visible = false;
+				PopUpManager.removePopUp(this);				
+				// send an event to hosts table to update the host whose creds may've changed
+				ZG_Utils.ZG_DispatchEvent(this,FT_Events.FT_EVT_UPDATE_TARGET_HOST,m_HostObj);
+				FT_Prefs.GetInstance().SaveHosts(m_hostsCB.dataProvider.toArray(),selectedIndex);
+			
+				callLater(FT_PluginManager.GetInstance().ExecutePlugin,[new Array(_plugin), m_HostObj,null,null]);			
+				
+			}
+			//------------------------------------------------------
+			private function OnHostsCBChange():void
+			{
+				m_HostObj = m_hostsCB.selectedItem as FT_TargetHost;
+				
+				this.m_OkButton.enabled = true;
+				if( m_HostObj !=null )
+				{
+					if( m_HostObj.isContainer)
+					{
+						m_OkButton.enabled = ( m_HostObj.children.length > 0 );
+					}
+					SetCurrentHost(m_HostObj);					
+				}
+				
+			}
+			//------------------------------------------------------
+			private function OnHostsCBClick():void
+			{
+				if(!fi_Username.enabled)
+				{
+					fi_Username.enabled = true;
+					fi_Username.text = "";
+				}
+				if(!fi_AuthField.enabled)
+				{
+					fi_AuthField.enabled = true;
+					fi_AuthField.text = "";
+				}
+			}
+			
+			/*
+			<s:TextInput id="ti_Host" width="200" 
+			change="OnTextEditChange(event)"/>					  
+			</mx:FormItem> 	
+			
+			<mx:FormItem label="Host" id="fi_hostList">
+			<s:ComboBox id="m_hostsCB" visible="false"
+			click ="OnHostsCBClick()"
+			change="OnHostsCBChange()"
+			width="100%"/>	*/	
+			
+		]]>
+	</fx:Script>
+	
+	<mx:Form id="m_HostEditorForm"  defaultButton="{m_OkButton}"  >
+		
+		
+		<mx:FormItem  label="Host" id="fi_HostContainer">
+			
+		</mx:FormItem>
+		
+		<mx:FormItem  label="User Name">
+			<s:TextInput id="fi_Username" width="200"  toolTip="Leave empty to use master user name"
+						change="OnTextEditChange(event)"/>
+		</mx:FormItem> 
+		
+		<mx:FormItem label="Authentication" >
+			<s:DropDownList id="m_AuthMetodList" width="200" fontWeight="normal"  change="OnListSelChange(event)"></s:DropDownList>		
+		</mx:FormItem> 	
+		
+		<mx:FormItem label="Password" id="m_AuthField" direction="horizontal" horizontalGap="5">			
+			<s:TextInput id="fi_AuthField"  toolTip="Leave empty to use master user master password"
+						 displayAsPassword="true" 
+						 width="200" 
+						 change="OnTextEditChange(event)"/>
+			
+		<s:Button label="Browse..." id="m_BrowseButton" click="OnBrowse(event)" visible="false"/>
+		</mx:FormItem> 
+		
+		<mx:FormItem direction="horizontal">
+			<s:Button label="Cancel" click="PopUpManager.removePopUp(this);"/>
+			<s:Button click="OnOKButtonClick();" label="OK" id="m_OkButton" />		
+		</mx:FormItem>
+	</mx:Form>
+	
+	<s:ComboBox id="m_hostsCB" visible="false"
+		click ="OnHostsCBClick()"
+		change="OnHostsCBChange()"
+		width="200"/>	
+	
+	<s:TextInput id="ti_Host" width="200" change="OnTextEditChange(event)" visible="false"/>					  
+		
+	
+	
+</mx:TitleWindow>

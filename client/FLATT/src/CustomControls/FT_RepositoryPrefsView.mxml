@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" width="400" height="300" creationComplete="OnInit()">
+
+	<fx:Script>
+		<![CDATA[
+			import Application.*;
+			import Repository.*;
+			import Utility.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.XMLListCollection;
+			import mx.events.*;			
+			import spark.events.TextOperationEvent;
+	
+			//======================================================================
+			protected function OnDelete(event:MouseEvent):void
+			{				
+				if(m_RepoList.dataProvider!=null)
+				{
+					m_RepoList.dataProvider.removeItemAt(m_RepoList.selectedIndex);
+				}
+				m_PasswordEdit.text = "";
+				m_UsernameEdit.text = "";
+				
+			}
+			//----------------------------------
+			protected function OnAdd(event:MouseEvent):void
+			{
+				AddNewRepoItem();
+			}
+			//----------------------------------
+			protected function OnInit():void
+			{
+				
+				ReadPrefs();
+				m_RepoList.selectedIndex = 0;
+				OnListClick(null);
+			}
+			//------------------------------------
+			public function ReadPrefs():void
+			{
+				//_repoXML =null;
+				if(m_RepoList !=null)
+				{
+					// make sure it's not null - sometimes
+					// this function is called when this object is not initialized,
+					// i.e when user opened prefs window and clicked cancel
+					m_RepoList.dataProvider = null;					
+					var repoXML:XML = FT_Prefs.GetInstance().GetRepos();
+					if (repoXML == null)
+					{
+						repoXML= new XML(FT_Strings.STR_DEF_REPO_LIST_XML);
+					}
+					
+					m_RepoList.dataProvider = new XMLListCollection(repoXML.children());
+					
+				}				
+			}
+			//-----------------------------------
+			private function AddNewRepoItem():void
+			{
+			
+				if(m_RepoList.selectedItem!=null)
+				{
+					SaveRepoCreds(m_RepoList.selectedItem as XML);
+				}
+				
+				m_RepoList.dataProvider.addItem(<Repo url="Click to enter repository URL"/>);				
+				m_PasswordEdit.text = "";
+				m_UsernameEdit.text = "";
+			}
+			//-----------------------------------------
+			public function Save():void
+			{
+				//can be null when the view is has not been initialized and a save comes in
+				if(m_RepoList!=null)
+				{
+					var repoXML:XML = new XML(FT_Strings.STR_DEF_REPO_LIST_XML);
+					var repoList:XMLList = new XMLList();
+					var i: int = 0;
+					// convert xml list collection to xml list
+					for(i= 0; i < m_RepoList.dataProvider.length;++i)
+					{					
+						// make sure to validate the url before adding it to prefs
+						var curRepo:XML = m_RepoList.dataProvider.getItemAt(i);
+						if(ZG_URLValidator.ValidUrl(curRepo.@url))
+						{
+							repoList += curRepo; //m_RepoList.dataProvider.getItemAt(i);
+						}
+					}
+					// assign the list to the xml
+					repoXML.Repo = repoList;				
+					FT_Prefs.GetInstance().SaveRepos(repoXML);
+					//callLater(FT_RepoManager.GetInstance().RepoAction,new Array(FT_RepoManager.REPO_ACTION_LOAD,null,null));
+				}
+			}			
+			//------------------------------------------------\
+			private function OnListClick(me:MouseEvent):void
+			{				
+				var curRepo:XML = m_RepoList.selectedItem as XML;
+				SetRepoCreds(curRepo);							
+			}
+			//---------------------------
+			protected function SaveRepoCreds(repo:XML):void
+			{
+				if(repo!=null)
+				{
+					repo.@username = m_UsernameEdit.text;
+					repo.@password = m_PasswordEdit.text;
+				}
+			}
+			//--------------------------------------
+		protected function	SetRepoCreds(repo:XML):void
+		{
+			if(repo!=null)
+			{
+				m_PasswordEdit.text = repo.@password;
+				m_UsernameEdit.text = repo.@username;
+			}
+		}		
+		//------------------------------
+		protected function OnEditChange(event:TextOperationEvent):void
+		{
+			var selItem:XML = m_RepoList.selectedItem as XML;
+			if(selItem!=null)
+			{
+				if(event.currentTarget == m_UsernameEdit)
+				{
+					selItem.@username = m_UsernameEdit.text;
+				}
+				else if(event.currentTarget == m_PasswordEdit)
+				{
+					selItem.@password = m_PasswordEdit.text;	
+				}
+			}		
+		}
+		//----------------------------------------
+		private function ShouldEnableEdit():Boolean
+		{
+			return (m_RepoList.dataProvider!=null && m_RepoList.dataProvider.selectedIndex>=0);
+		}
+			
+		]]>
+	</fx:Script>
+
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<mx:List 
+		id="m_RepoList" 
+		labelField="@url" 
+		left="10" top="10" bottom="10" right="140" editable="true"
+		useRollOver="false" 
+		 fontWeight="normal"
+		  click="OnListClick(event)"
+		>
+	</mx:List>
+	
+	<s:Button id="m_Delete" right="73" bottom="10" width="60" label="Delete" click="OnDelete(event)"
+			  enabled="{ m_RepoList.selectedIndex &gt;=0}" fontWeight="bold"/>
+	<s:Button right="8" bottom="10" width="60" label="Add" click="OnAdd(event)" fontWeight="bold"/>
+	<s:TextInput id="m_UsernameEdit" right="10" top="30" width="122" change="OnEditChange(event)"
+				 fontStyle="normal" fontWeight="normal"/>
+	<s:TextInput id="m_PasswordEdit" right="10" top="77" width="122" change="OnEditChange(event)"
+				 displayAsPassword="false" fontStyle="normal" fontWeight="normal"/>
+	<s:Label right="72" top="60" width="59" fontWeight="bold" text="Password"/>
+	<s:Label right="72" top="10" height="12" fontWeight="bold" text="Username"/>
+</mx:Canvas>

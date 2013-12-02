@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Panel xmlns:fx="http://ns.adobe.com/mxml/2009"
+		 xmlns:s="library://ns.adobe.com/flex/spark"
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 xmlns:CustomControls="CustomControls.*"
+		 width="100%" height="100%" creationComplete="OnInit()" 
+		 title="Host Configurations"
+		 
+		 
+		 >
+	
+	<fx:Script>
+		<![CDATA[
+			
+						
+			import HostConfiguration.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			import mx.collections.*;
+			import mx.events.ValidationResultEvent;
+			
+			
+			
+			
+			protected function OnClick(event:MouseEvent):void
+			{
+				//-------------------------------
+				if(event.currentTarget!=null)
+				{
+					switch(event.currentTarget)
+					{
+						
+						case m_ImportBtn:
+							HandleImport();
+							break;
+	
+						case this.m_NewBtn:
+							HandleNew();
+					}
+				}				
+				
+			}
+			//--------------------------------
+			private function OnInit():void
+			{
+				m_HostConfigTree.addEventListener(FT_Events.FT_EVT_CONFIG_FILES_READY,OnConfigFilesReady);
+			}
+			
+			//---------------------------------
+			public function HandleImport():void
+			{
+	
+				var fileBrowser:ZG_FileUtils = new ZG_FileUtils();
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_COMPLETE,OnReadFileComplete);
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_CANCEL,OnReadFileComplete);		
+				fileBrowser.BrowseReadFile("","",true);// all file types, only file path						
+				
+			}
+			//------------------------------------------
+			private function OnReadFileComplete(evt:ZG_Event):void
+			{								
+				if(evt.type == ZG_Event.EVT_READ_FILE_COMPLETE)
+				{			
+					if(evt.data!=null)
+					{	
+						FT_HostConfigManager.GetInstance().AddHostConfig(evt.data as File,true);
+						
+											
+					}
+				}				
+			}
+			//---------------------------------
+			// new is not used for now
+			public function HandleNew():void
+			{
+				m_HostConfigTree.ShowConfigEditor(null);
+			}
+			//----------------------------------------
+			private function OnConfigFilesReady(evt:ZG_Event):void
+			{
+				var items:ArrayCollection = evt.data as ArrayCollection;
+				if(items !=null)
+				{
+					this.title =" Host Configurations (" +items.length+ ")";
+				}
+			}			
+		]]>
+	</fx:Script>
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	
+	</fx:Declarations>
+	<mx:Button id="m_ExportBtn" visible="false" y="-27.7" right="34" width="24" height="24"
+			   click="m_HostConfigTree.OnExport()" enabled="{m_HostConfigTree.selectedItem!=null}"
+			   icon="@Embed('assets/export-22.png')" toolTip="Export Host configuration"/>
+	
+	<mx:Button id="m_ImportBtn" visible="false" y="-27.7" right="6" width="24" height="24"
+			   click="OnClick(event)" icon="@Embed('assets/import-22.png')"
+			   toolTip="Import Host Configuration"/>
+	
+	<mx:Button id="m_DelBtn" visible="false" y="-27.7" right="62" width="24" height="24" label="D"
+			   click="m_HostConfigTree.OnRemove()" enabled="{m_HostConfigTree.selectedItem!=null}"
+			   icon="@Embed('assets/remove-16.png')" toolTip="Delete selected Host configuration"/>
+	<mx:Button id="m_NewBtn" visible="false" y="-27.7" right="90" width="24" height="24" label="N"
+			   click="OnClick(event)" toolTip="New Host Configuration"/>
+	<CustomControls:FT_HostConfigTree id="m_HostConfigTree" left="0" right="0" top="0" bottom="0"/>
+	<CustomControls:SearchField id="m_SearchField" left="150" right="7" top="-26" height="20"
+								backgroundAlpha="0.9" borderVisible="false" cornerRadius="3"
+								search="{m_HostConfigTree.FilterFunc(event)}" 
+								delay="50" dropShadowVisible="false" toolTip="Search for Host Configurations">
+	</CustomControls:SearchField>
+</s:Panel>

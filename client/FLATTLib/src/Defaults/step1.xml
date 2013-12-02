@@ -1,0 +1,21 @@
+<FLATTPlugin category="Task Parts">
+  <GUID>3465a77e237c93cff2befd8135b9a2bc6f945dc1</GUID>
+  <Version>1.0</Version>
+  <Creator>FLATT Solutions</Creator>
+  <Name>Step1</Name>
+  <Image/>
+  <Action>echo 'Executing step 1'</Action>
+  <Description>Sample of task output  in text format</Description>
+  <ReturnData type="Text">
+    <DataSeparator>space</DataSeparator>
+    <Description/>
+    <NumColumns>0</NumColumns>
+  </ReturnData>
+  <Transport>ssh</Transport>
+  <UIParamsList />
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+</FLATTPlugin>

@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Window xmlns:mx="http://www.adobe.com/2006/mxml" 
+	layout="absolute" 
+	width="480" 
+	height="400"
+	 creationComplete="OnInit()"
+	 closing="OnClosing(event)"
+	>
+	<mx:Script>
+		<![CDATA[
+			//------------------------------
+			import Application.*;
+			
+			import DesktopApp.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Logging.*;
+			import com.ZG.Utility.*;
+			
+			//================================================
+			private static	var	s_Instance:ZG_LogWindow;
+		 	
+			private static const IDX_APP_LOG:int = 0;
+			private static const IDX_SRVR_LOG:int = 1;
+			//------------------------------------------------
+	 		public static function GetInstance():ZG_LogWindow
+	 		{
+	 			if(s_Instance == null)
+		 		{
+		 			s_Instance = new ZG_LogWindow();
+		 			s_Instance.open();
+		 		}
+		 		else
+		 		{
+					// explicitly make window visible - it causes all children to become visible
+					// in flex 3 could just call activate
+					s_Instance.visible = true;
+					s_Instance.activate();
+		 		}
+		 		return s_Instance;
+	 		}
+			
+			//------------------------------------------------
+			private function OnInit():void
+			{
+				this.title = ZG_Utils.TranslateString("Log Window");
+				ZG_AppLog.GetInstance().addEventListener(ZG_Event.EVT_APP_LOG_LOADED,OnAppLogLoaded);
+				ZG_AppLog.GetInstance().addEventListener(ZG_Event.EVT_APP_LOG,OnAppLog);
+				
+				ZG_AppLog.GetInstance().LoadLog();
+			}
+			//-------------------------------------------------------
+			private function OnAppLogLoaded(evt:ZG_Event):void
+			{
+				if (evt!=null && evt.data !=null )
+				{
+					this.m_AppLogTA.text = evt.data as String;
+				}
+			}
+			//---------------------------------
+			private function OnBtnClick(event:MouseEvent):void
+			{
+				var btn:Button = event.currentTarget as Button;
+				// clrear text in both cases
+				switch(m_TabNavigator.selectedIndex)
+				{
+					case IDX_APP_LOG:
+						if(btn == this.m_ReloadBtn)
+						{
+							LoadAppLog();
+						}
+						else
+						{
+							m_AppLogTA.text = "";
+						}
+						break;
+					case IDX_SRVR_LOG:
+						if(btn == this.m_ReloadBtn)
+						{
+							LoadServerLog();
+						}
+						else
+						{
+							m_ServerLogTA.text = "";
+						}
+						break;	
+				}			
+			}
+			//--------------------------------------------------------------
+			// this prevents the window from being closed and just hides it
+			private function OnClosing(event:Event):void
+			{
+			 	event.preventDefault();			 	
+			 	s_Instance.visible = false;					   
+			}
+			//----------------------------------------------------------
+			private function OnAppLog(evt:ZG_Event):void
+			{
+				if (evt!=null && evt.data !=null )
+				{
+					this.m_AppLogTA.text +=evt.data as String;			
+				}
+			}
+			//------------------------------------------------
+			private function OnTabChange():void
+			{
+				switch(m_TabNavigator.selectedIndex)
+				{
+					case IDX_APP_LOG:
+						LoadAppLog();
+						break;
+					case IDX_SRVR_LOG:
+						LoadServerLog();
+						break;
+					default:
+						trace("OnTabChange:Wrong index :"+ m_TabNavigator.selectedIndex);
+						break;						
+				}
+			}
+			//-------------------------------------------
+			private function LoadAppLog():void
+			{
+				m_AppLogTA.text = "";
+				ZG_AppLog.GetInstance().LoadLog();	
+			}
+			//-------------------------------------------
+			private function LoadServerLog():void
+			{
+				var logText:String = "";
+				
+				//if(FT_Prefs.GetInstance().GetProxyType() == FT_Prefs.PROXY_TYPE_INTERNAL )
+				// now that we always run local proxy for svn , always display it
+				{
+					try
+					{
+						var logFile:File = new File(FT_DesktopApplication(FT_Application.GetInstance()).GetProxyLogPath());
+						logText = (logFile.exists ? (ZG_FileUtils.ReadFile(logFile,true) as String) : "");
+						logFile = null;
+					}
+					catch( e:Error)
+					{
+						logText = "Error loading internal proxy log";
+					}
+				}
+				/*else
+				{
+					logText = ZG_Utils.TranslateString("Remote proxy log cannot be viewed");
+				}*/
+				
+				m_ServerLogTA.text = logText;
+				
+			}
+			
+		]]>
+	</mx:Script>
+	<mx:TabNavigator bottom="40"
+					 id="m_TabNavigator" 
+					 left="0" top="0" right="0" change="OnTabChange()">
+		
+		<mx:Canvas label="App Log" borderVisible="false" top="">
+			<mx:TextArea  borderVisible="false"
+				wordWrap="true" 
+				editable="false" 
+				enabled="true" 
+				id="m_AppLogTA" 
+				left="0" right="0" bottom="0" top="0" fontSize="12"
+				liveScrolling="true"
+				valueCommit="{m_AppLogTA.verticalScrollPosition=m_AppLogTA.maxVerticalScrollPosition}"
+				paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0"/>	
+		</mx:Canvas>
+		
+		<mx:Canvas label="Local Proxy Log" borderVisible="false" top="-5">			
+		<mx:TextArea 
+			wordWrap="true" 
+			editable="false" 
+			enabled="true" 
+			borderVisible="false"
+			id="m_ServerLogTA" 
+			left="0" right="0" bottom="0" top="0" fontSize="12"
+			liveScrolling="true"
+			valueCommit="{m_ServerLogTA.verticalScrollPosition=m_ServerLogTA.maxVerticalScrollPosition}"
+			paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0"/>	
+		</mx:Canvas>	
+		
+	</mx:TabNavigator>	
+	
+	<mx:Button label="Clear" 
+		id="m_ClearBtn" 
+		right="20" bottom="10"
+		click="OnBtnClick(event)"
+		/>
+	<mx:Button label="Reload" 
+		id="m_ReloadBtn" 
+		bottom="10" 
+		right="100"
+		click="OnBtnClick(event)"
+		/>
+</mx:Window>

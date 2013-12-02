@@ -1,0 +1,994 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Tree xmlns:fx="http://ns.adobe.com/mxml/2009"
+		 xmlns:s="library://ns.adobe.com/flex/spark"
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 click="OnClick(event)" creationComplete="OnInit()" dataTipFunction="DataTipFunc"
+		 doubleClickEnabled="true" dragEnabled="true" dragMoveEnabled="true" dropEnabled="false"
+		 editable="false" editorXOffset="30" 
+		  iconFunction="TreeIconFunc"	
+		 itemDoubleClick="tree1_doubleClickHandler(event)"
+		 showDataTips="true" useRollOver="false">
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here 
+		
+		
+		folderClosedIcon="@Embed(source='assets/hostgrp-16.png')"
+		folderOpenIcon="@Embed(source='assets/hostgrp-16.png')"  
+		iconField="icon"
+		
+		itemEditBeginning="OnItemEditBegin(event)"
+		itemEditEnd="OnItemEditEnd(event)"
+		 doubleClick="OnDoubleClick(event)"	
+		itemDoubleClick="tree1_doubleClickHandler(event)"
+		itemEditBegin="tree1_itemEditBeginHandler(event)"
+		itemEditBeginning="tree1_itemEditBeginningHandler(event)"
+		itemEditEnd="tree1_itemEditEndHandler(event)"
+		
+		dragEnabled="false"
+		dropEnabled="false"
+		dragMoveEnabled="false"
+		dragDrop="OnDragDrop(event)"	
+		dragOver="OnDragOver(event)"		 
+		dragEnter="OnDragEnter(event)" 
+		
+		
+		-->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import Application.*;
+			
+			import CustomControls.FT_CustomHostEditor;
+			import CustomControls.Renderers.*;
+			
+			import DesktopApp.*;
+			
+			import FLATTPlugin.*;
+			
+			import HostConfiguration.*;
+			
+			import Licensing.*;
+			
+			import TargetHostManagement.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.UserObjects.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.*;
+			import mx.controls.Alert;
+			import mx.controls.listClasses.*;
+			import mx.core.DragSource;
+			import mx.core.UIComponent;
+			import mx.events.DragEvent;
+			import mx.events.FlexEvent;
+			import mx.events.ListEvent;
+			import mx.managers.DragManager;
+			import mx.managers.PopUpManager;
+			
+			//======================================
+			private var m_LastSelectedItem:FT_TargetHost;
+			private var m_LastText:String = "";
+			private var m_DragHelper:FT_DragHelper = new FT_DragHelper();
+			private var m_DoubleClick:Boolean = false;
+			private var m_HostScanLicenseChecked:Boolean = false;
+			
+			
+			protected  var CM_NEW_HOST_INDEX:int = 0;
+			protected  var CM_NEW_HOST_GRP_INDEX:int = 1			
+			protected  var CM_DELETE_INDEX:int = 2;
+			protected  var CM_EDIT_INDEX: int = 3;
+	
+			
+			protected static const  STR_NEW_HOST:String = ZG_Utils.TranslateString("New Host...");
+			protected static const  STR_NEW_HOST_GRP:String = ZG_Utils.TranslateString("New Host Group");
+			protected static const  STR_DELETE:String = ZG_Utils.TranslateString("Delete");
+			protected static const  STR_EDIT_HOST:String = ZG_Utils.TranslateString("Edit Host");
+			
+			
+			
+			//======================================
+			private function OnInit():void
+			{
+							
+				
+				// Set up drag helper
+				m_DragHelper.helpee = this;
+				/* these are not used */
+				m_DragHelper.allowsPluginDrop = true;
+				m_DragHelper.allowsTaskDrop = true;
+				//m_DragHelper.allowsHostConfigDrop = true;
+				
+				//callLater(InitDataProvider);// defer for performance
+				InitDataProvider();
+				addEventListener(DragEvent.DRAG_ENTER, OnDragEnter, true, 0, true);
+				addEventListener(DragEvent.DRAG_OVER, OnDragOver, true, 0, true);
+				addEventListener(DragEvent.DRAG_DROP, OnDragDrop);
+				FT_TargetHostManager.GetInstance().addEventListener(FT_Events.FT_EVT_HOST_IMPORT_COMPLETE,OnImportGroup);
+				FT_HostConfigManager.GetInstance().addEventListener(FT_Events.FT_EVT_CONFIG_FILES_READY,OnConfigFilesReady);
+				FT_HostConfigManager.GetInstance().addEventListener(FT_Events.FT_EVT_REMOVE_HOST_CONFIG,OnRemoveConfig);
+				
+				// set a variable in the renderer .. seems kinda clunky
+				var treeRenderer:ClassFactory = new ClassFactory(FT_HostsTreeItemRenderer);
+				treeRenderer.properties = {treeParent:this};
+				this.itemRenderer = treeRenderer;
+				
+				InsertContextMenus();
+				
+				
+				
+				
+			}
+			// ----------------------------
+			// defer for performance on large lists
+			private function InitDataProvider():void
+			{
+				dataProvider = new ArrayCollection(FT_Prefs.GetInstance().GetSavedHostsList());
+				this.invalidateList();
+				
+			}
+			
+			//--------------------------------------
+			public function OnEditWindowClosed(evt:ZG_Event):void
+			{
+							
+				// TODO pop a dialog to enter host address, username and password
+				// remove event listener to free the object that sent this event
+				evt.target.removeEventListener(FT_Events.FT_EVT_ADD_HOST,this.OnEditWindowClosed as Function);
+				
+				
+				var host:FT_TargetHost = evt.data as FT_TargetHost;
+				var selItem:FT_TargetHost = this.selectedItem as FT_TargetHost;
+				
+				if( host!=null )
+				{									
+					// nothing to do for containers
+					if(!host.isContainer)
+					{
+					
+						if(selItem!=null && selItem.isContainer )
+						{
+							// only add if not  there
+							if(selItem.FindChildBy(ZG_PersistentObject.SRCH_TYPE_NAME,host.name) == null && 
+								FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_HOSTS,host,this.dataProvider))
+							{						
+								selItem.AddChild(host);
+								this.expandItem(selItem,true);
+							
+							}
+						}
+						else
+						{
+							// only add if not  there. If it's already an existing item - dont add
+							if(ZG_Utils.GetObjectByName(host.name,this.dataProvider,true,false) == null && host.parentObj ==null )
+							{
+								if(FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_HOSTS,host,this.dataProvider))
+								{
+									this.dataProvider.addItem(host);
+								}
+							}						
+						}
+					}				
+					
+					FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+					this.selectedItem = host;	
+					this.invalidateList();		
+					
+				}
+			}
+			//--------------------------------------
+			public function OnAddGroup():void
+			{
+				var grpHost:FT_TargetHost = new FT_TargetHost();
+				grpHost.isContainer = true;
+				grpHost.name = "Untitled Group";
+			
+				this.dataProvider.addItem(grpHost);	
+				//save prefs
+				FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+				
+			}
+			//----------------------------------------------
+			// the event contains a group with multiple hosts created from a csv file ( or other means )
+			public function OnImportGroup(evt:ZG_Event):void
+			{
+				var group:FT_TargetHost = evt.data as FT_TargetHost;
+				// this function may trim the number of items if they
+				// exceed allowed in the license
+				if(FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_HOSTS,group,this.dataProvider))
+				{
+					this.dataProvider.addItem(group);
+					this.selectedItem = group;
+					this.expandItem(this.selectedItem,true);
+					//save prefs
+					FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+					this.invalidateList();
+				}
+			}			
+			//--------------------------------------
+			public function OnRemove():void
+			{
+				var host:ZG_PersistentObject = this.selectedItem as ZG_PersistentObject;
+				var savedSelIndex:int = this.selectedIndex;
+				
+				if( host !=null )
+				{
+					// if deleting a host inside a group - delete from group 
+					// and update index
+					if(host.parentObj!=null)
+					{
+						var parent:ZG_PersistentObject = host.parentObj;
+						
+						parent.children.removeItemAt(parent.children.getItemIndex(host));
+					}
+					else
+					{
+						this.dataProvider.removeItemAt(this.dataProvider.getItemIndex(host));
+					}
+					// adjust selection.
+					
+					savedSelIndex--;
+					if(savedSelIndex>=0 && savedSelIndex < this.dataProvider.length)
+					{
+						this.selectedItem = this.dataProvider.getItemAt(savedSelIndex);
+					}
+					else
+					{
+						if(this.dataProvider.length >  0)
+						{
+							this.selectedItem = this.dataProvider.getItemAt(0);
+						}
+					}
+					//save prefs
+					FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+				}				
+			}
+			//------------------------------------------------------
+			// Prevent hosts - only groups
+			private function OnItemEditBegin(event:ListEvent):void
+			{				
+				m_LastSelectedItem = this.selectedItem as FT_TargetHost;	
+				
+				if(m_LastSelectedItem!=null)
+				{			
+					if(m_LastSelectedItem.isContainer)
+					{
+						// save the name ( host) of the selected item
+						m_LastText = m_LastSelectedItem.name;
+						trace("OnItemEditbeginning: container text="+ m_LastText);
+					}
+					else
+					{
+						//don't allow in place editing single hosts, only containers
+						trace("OnItemEditbeginning: leaf text="+ m_LastSelectedItem.host);
+						
+						event.preventDefault();		
+						this.selectedItem = m_LastSelectedItem;
+					}
+				}				
+			}
+			//------------------------------------------------------ 
+			public function OnItemEditEnd(event:ListEvent):void
+			{
+				//Only save when changed.
+				var editorInstance:TextInput = event.currentTarget.itemEditorInstance;
+				
+				if(m_LastSelectedItem == this.selectedItem && editorInstance.text!=m_LastText)
+				{
+					trace("OnItemEditEnd:Saving text: "+ editorInstance.text);
+					 // if it's a container - save  the edited value as name, otherwise it;s host address
+					if( m_LastSelectedItem.isContainer)
+					{
+						m_LastSelectedItem.name = editorInstance.text;
+					}
+					else
+					{
+						m_LastSelectedItem.host = editorInstance.text;
+					}
+					FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+				}
+				
+				else
+				{
+					//trace("OnItemEditEnd:text = "+ editorInstance.text);
+				}				
+			}
+			//----------------------------------------------------------------
+			// TODO: Delete
+			/*protected function OnDoubleClick(event:MouseEvent):void
+			{
+				var selItem:FT_TargetHost = this.selectedItem as FT_TargetHost;
+				if( selItem !=null && (!selItem.isContainer))
+				{
+					var hostEditorWnd:FT_HostEditorWindow = PopUpManager.createPopUp(this, FT_HostEditorWindow, true) as FT_HostEditorWindow;
+					hostEditorWnd.addEventListener(FT_Events.FT_EVT_ADD_HOST,OnAddHost);
+					hostEditorWnd.SetHost(selItem);
+					PopUpManager.centerPopUp(hostEditorWnd);
+					PopUpManager.bringToFront(hostEditorWnd);
+				}
+			}*/
+			//------------------------------------------------------
+			
+			protected function DataTipFunc(item:Object):String
+			{
+				var host:FT_TargetHost = item as FT_TargetHost;
+				var dataTip:String = "";
+				
+				if(host !=null)
+				{
+					//dataTip = (host.isContainer? "Double click to rename" :dataTip);
+					dataTip = ZG_Utils.TranslateString("Double click to edit");
+					var configFileName:String = host.GetConfigFileName();
+					if(ZG_StringUtils.IsValidString(configFileName))
+					{
+						dataTip += ZG_Utils.TranslateString("\nUses Host Configuration \""+ configFileName + "\"");
+						//trace("host "+ host.name + " uses config file "+configFileName);
+					}
+				}
+				
+				return dataTip;
+			}
+
+			//------------------------------------------------------
+			protected function OnClick(event:MouseEvent):void
+			{
+				
+				// detect a click outside all items and deselect everything
+				if(event.target is ListBaseContentHolder )
+				{
+					selectedItem = null;
+				}
+			}
+			//---------------------------------------------------
+			// this assumes that only one object is being dragged
+			protected function OnDragDrop(event:DragEvent):void
+			{
+				trace("FT_HostsTree:OnDragDrop");
+				event.preventDefault();
+			
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+				
+				if( obj!=null )
+				{								
+					if( obj is FT_TargetHost)
+					{
+						trace ("OnDragDrop:host = "+ obj.name );	
+						RepositionHost(obj as FT_TargetHost,event);						
+					}
+					// subclasses always before base class
+					else if (obj is FT_Task )
+					{
+						// Task is dragged					
+						RunTask(FT_Task(obj));
+					}
+					else if( obj is FT_Plugin) 
+					{
+						trace ("OnDragDrop:plugin = "+ obj.name );														
+						RunPlugin(obj as FT_Plugin);
+					}
+					
+					//items dragged from tasks table
+					else if( obj is FT_PluginRef) 
+					{
+						trace ("OnDragDrop:pluginRef = "+ obj.name );												
+						RunPlugin(FT_PluginRef(obj).plugin);
+					}
+					else if (obj is FT_HostConfig)
+					{
+						trace("OnDragDrop:hostconfig = "+ obj.name);
+						AddHostConfig(obj as FT_HostConfig);
+					}
+					else if ( obj is File )
+					{
+						trace("OnDragDrop:File! = "+obj.name);
+						FT_TargetHostManager.GetInstance().HandleHostImport(ZG_FileUtils.GetFileData(obj as File));
+					}
+				}
+			}
+			
+			//-------------------------------------
+			//TODO: Delete if not needed
+			protected function OnDragComplete(event:DragEvent):void
+			{
+								
+				trace("OnDragComplete");
+			}
+							
+			//-----------------------------------------------
+			protected function OnDragOver(event:DragEvent):void
+			{
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+				
+				if(obj!=null)
+				{					
+					
+					//DragManager.showFeedback(DragManager.LINK);
+					var dropIndex:int = this.calculateDropIndex(event);
+						
+					if(  obj is FT_Plugin || obj is FT_PluginRef || obj is File || obj is FT_HostConfig ||
+						(obj is FT_TargetHost && (!obj.isContainer)))
+					{																						
+						this.selectedIndex = this.calculateDropIndex(event);	
+						
+					}
+				}
+			}										
+			//-----------------------------------------------
+			protected function OnDragEnter(event:DragEvent):void
+			{
+				
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+							
+				if( obj !=null)
+				{					
+					this.dropEnabled = !(obj is File);
+					
+					if ( obj is FT_HostConfig || (m_DragHelper.DragObjectAllowed(obj)||(obj is FT_TargetHost && obj.isContainer == false)))
+					{																		
+						DragManager.acceptDragDrop(event.currentTarget as UIComponent);		
+						DragManager.showFeedback(DragManager.LINK);
+						trace("FT_HostsTree:OnDragEnte, allowing task  action or hostconfig");						
+						
+					}
+					else
+					{
+						//only allow objects of type plugin to be dragged on	
+						trace("FT_HostTree:OnDragEnter, disallowing drag of "+obj.name);
+						DragManager.showFeedback(DragManager.NONE);
+					}
+				}					
+			}
+			//-----------------------------------------------
+			private function RepositionHost(dropItem:FT_TargetHost,event:DragEvent):void																						
+			{
+				
+				if(dropItem.isContainer)
+				{
+					trace ("not repositioning containers");
+					return;
+					
+				}
+				trace("reposition host: "+ dropItem.name);
+				var dropIndex:int = this.calculateDropIndex(event);
+				
+				var renderer:IListItemRenderer = null;
+				
+				if( 1 )
+				{					
+					// find the place the user is dropping the new item
+					renderer = this.indexToItemRenderer(dropIndex);	
+					if(renderer != null )
+					{
+						// target item exists - either a task or a pluginref.					
+						var targetItem:FT_TargetHost = renderer.data as FT_TargetHost;
+						// The  item was dropped on a task container
+						if(targetItem.isContainer || targetItem.parentObj!=null)
+						{						
+							this.selectedIndex = dropIndex;
+							// drop index needs to be mapped to an index inside the container.'
+							// if the drop occurred on container itself then dropIndex is 0
+							// Otherwise insert at the index of the drop object inside container
+							// dropping inside a group but not on the group folder
+							dropIndex = 0;
+							if(!targetItem.isContainer)
+							{
+								dropIndex =  targetItem.parentObj.children.getItemIndex(targetItem)
+								targetItem = targetItem.parentObj as FT_TargetHost;												
+								
+							}
+							trace("HandleDropOnHostGroupFolder:" + targetItem.name);
+							HandleDropOnHostGroupFolder(targetItem,dropItem,dropIndex,event);							
+						}
+						else
+						{
+							// just movving host to a different spot in tree						
+							MoveHost(dropItem,dropIndex,event);					
+						}
+					}
+					else
+					{						
+						//if(dropItem.parentObj!=null)
+						{
+							trace("MoveHost");
+							MoveHost(dropItem,dropIndex,event);
+							//DD_NewTask(dropItem,dropIndex,event);												
+						}
+						/*else
+						{
+							// standalone item is moved down
+							MoveItemDown(dropItem,event);
+						}*/
+					}
+				}										
+				hideDropFeedback(event);
+				//TODO: Save changesFT_PluginManager.GetInstance().SaveTasks();
+			}
+			//-----------------------------------------------
+			private function RunPlugin(plugin:FT_Plugin):void
+			{				
+				callLater(FT_PluginManager.GetInstance().ExecutePlugin,[new Array(plugin),this.selectedItem as FT_TargetHost,null,null]);
+			}
+			//-----------------------------------------------
+			private function RunTask(task:FT_Task):void
+			{
+				callLater(FT_PluginManager.GetInstance().ExecuteTask,[task,this.selectedItem as FT_TargetHost,null]);
+			}
+			//-----------------------------
+			// TODO: unused, delete
+			protected function tree1_doubleClickHandler(event: ListEvent ):void
+			{
+				var selItem:ZG_PersistentObject = this.selectedItem as ZG_PersistentObject;
+				// when double click is on a container - edit name, otherwise edit host 
+				if(selItem !=null)
+				{					
+					/*if(selItem.isContainer )
+					{
+						var renderer:IListItemRenderer = event.itemRenderer;
+						if(renderer !=null )
+						{
+							// make sure the edit width does not run off to the right
+							renderer.width = (this.width - 20);					
+						}
+						Tree( event.target ).editedItemPosition = { columnIndex: 0, rowIndex: event.rowIndex };
+						m_DoubleClick = true;
+					}
+					else*/
+					{					
+						/*var hostEditorWnd:FT_HostEditorWindow = PopUpManager.createPopUp(this, FT_HostEditorWindow, true) as FT_HostEditorWindow;
+						hostEditorWnd.addEventListener(FT_Events.FT_EVT_ADD_HOST,OnAddHost);
+						hostEditorWnd.SetHost(selItem as FT_TargetHost);
+						PopUpManager.centerPopUp(hostEditorWnd);
+						PopUpManager.bringToFront(hostEditorWnd);*/
+						ShowHostEditWindow(selItem)
+						event.preventDefault();					
+					}
+				}				
+			}
+			//-----------------------------------------------------------
+			private function ShowHostEditWindow(selItem:Object):void
+			{
+				var hostEditorWnd:FT_HostEditAndLoginWindow = PopUpManager.createPopUp(this, FT_HostEditAndLoginWindow, true) as FT_HostEditAndLoginWindow;
+				hostEditorWnd.addEventListener(FT_Events.FT_EVT_ADD_HOST,OnEditWindowClosed);
+				hostEditorWnd.SetCurrentHost(selItem as FT_TargetHost);
+				hostEditorWnd.loginMode = false;
+				PopUpManager.centerPopUp(hostEditorWnd);
+				PopUpManager.bringToFront(hostEditorWnd);
+			}
+			//----------------------------------------------------------
+			/*
+				TODO: Delete
+			protected function tree1_itemEditBeginningHandler(event:ListEvent):void
+			{				
+				event.preventDefault();
+			}
+			//------------------------------------------
+			protected function tree1_itemEditEndHandler(event:ListEvent):void
+			{				
+				OnItemEditEnd(event);
+				m_DoubleClick = !m_DoubleClick ;				
+			}
+			//------------------------------------------
+			protected function tree1_itemEditBeginHandler(event:ListEvent):void
+			{
+				// TODO Auto-generated method stub
+				if(!m_DoubleClick)
+				{
+					event.preventDefault();					
+				}
+				else
+				{
+					OnItemEditBegin(event);
+					
+				}
+			}*/
+			//--------------------------------------------
+			override public function showDropFeedback(evt:DragEvent):void
+			{
+				var obj:Object = m_DragHelper.GetDragSourceObject(evt.dragSource);
+				
+				// only show insertion line forsingle hosts, not containers,plugings or tasks
+				if((obj is FT_TargetHost && !obj.isContainer))
+				{
+					super.showDropFeedback(evt);
+				}
+			}
+			//-------------------------------------
+			protected function HandleDropOnHostGroupFolder(targetItem:FT_TargetHost,
+														   dropItem:FT_TargetHost,
+														   dropIndex:int,
+														   event:DragEvent):void
+			{
+				var newHost:FT_TargetHost = new FT_TargetHost();
+				newHost.Copy(dropItem);
+				
+				// if shift key is pressed the item is copied
+				if(!event.shiftKey)
+				{
+					// item is being moved - delete from previous location if it was in a folder
+					if(dropItem.parentObj!=null)
+					{
+						dropItem.parentObj.DeleteChild(dropItem);
+					}
+					else
+					{
+						// standalone item is moving into a folder - delete it from data provider and re-add						
+						this.dataProvider.removeItemAt(this.dataProvider.getItemIndex(dropItem));
+					}
+				}
+				targetItem.AddChild(newHost,dropIndex);
+				this.expandItem(targetItem,true);
+				this.selectedItem = newHost;
+				this.invalidateList();				
+				FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+			}
+			
+			//------------------------------------------------------------
+			// dropping  iteem outside the group.
+			// no target item. Make sure the drop Item does not have a parent.
+			// If it does - delete it from parent list if the shift key was not pressed.
+			// Otherwise make a copy of the item.
+			private function MoveHost(dropItem:FT_TargetHost,
+											   dropIndex:int,
+											   event:DragEvent):void
+			{
+				var newHost:FT_TargetHost = new FT_TargetHost();
+				newHost.Copy(dropItem);
+				if(!event.shiftKey)
+				{
+					// item is being moved - delete from previous location if it was in a folder
+					if(dropItem.parentObj!=null)
+					{
+						dropItem.parentObj.DeleteChild(dropItem);
+					}
+					else
+					{
+						//otherwise remove it  from its current location and add			
+						this.dataProvider.removeItemAt(this.dataProvider.getItemIndex(dropItem));
+					}
+				}
+				
+				//dont drop below zero
+				dropIndex = Math.max(dropIndex,0);
+				//if index is > num items in provider - add to end
+				// otherwise add at index
+				if(dropIndex >= dataProvider.length)
+				{
+					trace("MoveHost:dropIndex "+ dropIndex + " dp.len: "+dataProvider.length);
+					// account for open items because they increase drop index
+					dropIndex -=GetNumOpenItems();
+					dropIndex = Math.max(dropIndex,0);
+					
+					if(dropIndex <= 0 || dropIndex >=dataProvider.length)
+					{
+						this.dataProvider.addItem(newHost);
+					}
+					else
+					{
+						this.dataProvider.addItemAt(newHost,dropIndex);	
+					}
+				}
+				else
+				{
+					trace("MoveHost:adding item at index " + dropIndex);
+					this.dataProvider.addItemAt(newHost,dropIndex);		
+				}
+				this.selectedItem = newHost;
+				this.invalidateList();				
+				FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+			}
+			
+			//----------------------------------------
+			// count all open items
+			private function GetNumOpenItems():int
+			{
+				var ret:int = 0;
+				if(this.openItems!=null)
+				{
+					for(var i:int;i < this.openItems.length;++i)
+					{
+						var curItem:ZG_PersistentObject = this.openItems[i] as ZG_PersistentObject;
+						ret += curItem.children.length;
+					}	
+				}
+				return ret;
+				
+			}			
+			//---------------------------------
+			//Called by the target host manager when hosts become available.
+			
+			public function OnHostScanData(evt:ZG_Event):void
+			{
+				
+				var scannedGroup:FT_TargetHost = evt.data as FT_TargetHost;
+				if(scannedGroup!=null)
+				{
+					var existingGroup:FT_TargetHost = ZG_Utils.GetObjectByName(scannedGroup.name,this.dataProvider,true,false) as FT_TargetHost;
+					if(existingGroup == null)
+					{
+						
+						this.dataProvider.addItem(scannedGroup);
+						this.expandItem(scannedGroup,true);
+							
+					}
+					else
+					{
+						// update existing group
+						for(var i : int = 0; i <scannedGroup.numChildren;++i)
+						{
+							existingGroup.AddChild(scannedGroup.children.getItemAt(i)  as ZG_PersistentObject );							
+						}
+					}
+				}
+				this.invalidateDisplayList();
+				// now check the license.. scan stops if number of hosts is exceeded license
+				LicenseAllowsHostAdd(true);
+				
+				
+			}
+			//----------------------------
+			// return true if host add  is allowed with license restrictiions
+			public function LicenseAllowsHostAdd(cancelScan:Boolean):Boolean
+			{
+				var numAllowedHosts:int = FT_LicenseManager.GetInstance().LicenseCheck(FT_LicenseManager.LIC_CHECK_NUM_HOSTS);
+				
+				if(numAllowedHosts!=FT_License.LIC_NUM_UNLIMITED)
+				{
+					if(ZG_Utils.CountAll_ZGP_Objects(dataProvider as ArrayCollection) >=numAllowedHosts)
+					{						
+						
+						if(cancelScan)
+						{
+							FT_TargetHostManager.GetInstance().CancelScan();	
+							//TODO: maybe tell user somehow.
+							// requires sending an event to the view to update the text at the bottom
+						}
+						return false;
+					
+					}
+				}
+				return true;
+			}
+			//-------------------------
+			public function HandleItemUpdate(host:FT_TargetHost):void
+			{
+				var curItem:FT_TargetHost = ZG_Utils.GetObjectByName(host.name,this.dataProvider,true,false) as FT_TargetHost;
+				if(curItem!=null)
+				{
+					curItem.username = host.username;
+					curItem.password = host.password;
+					curItem.sshKey = host.GetSshKeyPath();
+				}
+				else
+				{
+					this.dataProvider.addItem(host);
+					this.invalidateDisplayList();
+				}
+					
+			}
+			//------------------------------
+			private function AddHostConfig(obj:FT_HostConfig):void
+			{
+				var selItem:FT_TargetHost = selectedItem as FT_TargetHost;
+				if(selItem !=null)
+				{
+					selItem.hostConfigID = obj.name;
+					//save prefs
+					FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+					this.invalidateList();
+					this.updateList();
+					
+				}
+			}
+			//----------------------------
+			// This function assigns an icon specific to this object
+			private function TreeIconFunc(item:Object):Class
+			{
+				var host:FT_TargetHost = item as FT_TargetHost;
+				if(host!=null)
+				{
+					return FT_Application.GetInstance().GetIconForObject(host);
+				}
+				return null;
+			}
+			
+			//------------------------------
+			private function OnConfigFilesReady(evt:ZG_Event):void
+			{
+				this.updateList();
+			}
+			//-------------------------------------
+			public function RemoveHostConfig(item:FT_TargetHost):void
+			{				
+					item.hostConfigID = "";
+					FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+					this.invalidateList();					
+			}
+			//-------------------------------------------
+			private function OnRemoveConfig(evt:ZG_Event):void
+			{
+				var hostCfg:FT_HostConfig =evt.data as FT_HostConfig;
+				var cleared:int = 0;
+				
+				if(hostCfg!=null)
+				{
+					var  result:Array = new Array();
+					var arrColl:ArrayCollection = this.dataProvider as ArrayCollection;
+					
+					for(var i:int=0; i <arrColl.length;++i)
+					{
+						var item:FT_TargetHost = arrColl.getItemAt(i) as FT_TargetHost;
+						cleared += item.ClearHostConfig(hostCfg.name);
+						
+					}
+					if(cleared > 0)
+					{
+						FT_Prefs.GetInstance().SaveHosts(this.dataProvider.toArray());
+						this.updateList();
+						
+					}
+				}
+			}
+			//--------------------------------------------------------
+			public function FilterFunc(event:SearchEvent):void
+			{				
+				// reset to containers if query is empty
+				if(event.query == "")
+				{
+					InitDataProvider();					
+				}
+				else
+				{
+					
+					var i:int;
+					var itemsToExpand:Array = new Array();
+					
+					var searchResult:Array = new Array();
+					if(ZG_ArrayCollection.DeepSearch(this.dataProvider as ArrayCollection,
+						event.query,
+						(ZG_PersistentObject.SRCH_TYPE_PARTIAL_NAME  | ZG_PersistentObject.SRCH_FLAG_INCLUDE_CONTAINER),
+						searchResult))																
+					{
+						
+						/* since  this is taksks, find the task objects for individual plugin objects */
+						var finalRes:Array = new Array();
+						
+						for( i=0; i < searchResult.length;++i)
+						{
+							var cur:ZG_PersistentObject = searchResult[i];
+							if(cur.isContainer)
+							{
+								// if it's a container -i.e. task,just add 
+								finalRes.push(cur);
+							}
+							else
+							{
+								// the found object is a plugin in a task.
+								// add its parent to the list and expand the parent
+								var parent:ZG_PersistentObject = cur.parentObj;
+								if(parent!=null && finalRes.indexOf(parent) < 0)
+								{
+									finalRes.push(parent);
+									itemsToExpand.push(parent);
+								}
+							}
+						}								
+					}
+					this.dataProvider = new ArrayCollection(finalRes);//newDP;			
+					this.openItems = itemsToExpand;											
+				}
+			}
+			//----------------------------------------------
+			protected function InsertContextMenus():void
+			{
+				//TODO: move into class tree	
+				this.contextMenu = new ContextMenu();
+				
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_NEW_HOST,OnMenuItemSelect,true);
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_NEW_HOST_GRP,OnMenuItemSelect,true);
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_DELETE,OnMenuItemSelect,true);
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_EDIT_HOST,OnMenuItemSelect,true);
+				this.contextMenu.addEventListener(ContextMenuEvent.MENU_SELECT, OnContextMenuSelect);
+			}
+			//---------------------------------------------------------
+			protected function OnContextMenuSelect(event:ContextMenuEvent):void
+			{
+				var rightClickIndex:int = -1;
+				var rightClickItemRenderer:IListItemRenderer = null;
+				var sendSelectEvent:Boolean = false;
+				
+				if (event.mouseTarget is IListItemRenderer)
+				{
+					rightClickItemRenderer = IListItemRenderer(event.mouseTarget);
+				}
+				else if (event.mouseTarget.parent is IListItemRenderer)
+				{
+					rightClickItemRenderer = IListItemRenderer(event.mouseTarget.parent);
+				}
+				
+				if (rightClickItemRenderer != null)
+				{
+					rightClickIndex = this.itemRendererToIndex(rightClickItemRenderer);
+					if(rightClickIndex >=0)
+					{
+						// something was selsected in the list
+						if (this.selectedIndex != rightClickIndex)
+						{
+							this.selectedIndex = rightClickIndex;
+							sendSelectEvent = true;
+						}
+					}
+				}
+				
+				SetupContextMenusForSelectedItem(); 
+				if(rightClickIndex >=0)
+				{					
+					if(sendSelectEvent)
+					{            	
+						//send onclick event so that the item is selected           	
+						dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK)); 
+					}					
+				}
+			}
+			//----------------------------------------------------
+			// Delete plugin context menu is only enabled if plugin is under cursor
+			protected function SetupContextMenusForSelectedItem():void
+			{
+				//Delete
+				var cmi:ContextMenuItem = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_DELETE);				
+				if(cmi !=null)
+				{
+					// assume delete is always there
+					cmi.enabled = (this.selectedItem !=null);
+				}
+				//New host
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_NEW_HOST);
+				if(cmi!=null)
+				{
+					cmi.enabled = true
+				}
+				//New host group
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_NEW_HOST_GRP);
+				if(cmi!=null)
+				{
+					cmi.enabled = true
+				}
+				
+				//Edit host
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_EDIT_HOST);				
+				if(cmi!=null)
+				{
+					cmi.enabled = (this.selectedItem!=null && this.selectedItem is FT_TargetHost && (this.selectedItem.isContainer == false));
+				}								
+			}
+			
+			//---------------------------------------------------------------
+			protected function OnMenuItemSelect( event:ContextMenuEvent):void               
+			{
+				//trace("OnMenuItemSelect: selected menu = "+ event.currentTarget.name);
+				switch(this.contextMenu.getItemIndex(event.currentTarget as NativeMenuItem))
+				{			
+					case CM_DELETE_INDEX:
+						OnRemove();
+						break;
+					case CM_NEW_HOST_GRP_INDEX:
+						OnAddGroup();	
+						break;
+					case CM_NEW_HOST_INDEX:
+						dispatchEvent(new Event(FT_Events.FT_EVT_CONTEXT_MENU_HOST_ADD));	
+						break;
+					case CM_EDIT_INDEX:
+						ShowHostEditWindow(selectedItem);
+						break;					
+				}		
+			}
+			
+
+		]]>
+	</fx:Script>
+	
+</mx:Tree>

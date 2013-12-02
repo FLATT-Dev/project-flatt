@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Window xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" width="600" height="500"
+		  creationComplete="OnInit()"
+		  closing="OnClosing(event)"
+		  >
+		 
+	<s:layout>
+		<s:BasicLayout/>
+	</s:layout>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+		//------------------------------
+	import Application.*;		
+	import DesktopApp.*;
+	
+	import com.ZG.Events.*;
+	import com.ZG.Logging.*;
+	import com.ZG.Utility.*;
+	
+	//================================================
+	private static	var	s_Instance:FT_QuickStartWindow;
+	
+	//------------------------------------------------
+	public static function GetInstance():FT_QuickStartWindow
+	{
+		if(s_Instance == null)
+		{
+			s_Instance = new FT_QuickStartWindow();
+			s_Instance.open();
+		}
+		else
+		{
+			// explicitly make window visible - it causes all children to become visible
+			// in flex 3 could just call activate
+			s_Instance.visible = true;
+			s_Instance.activate();
+		}
+		return s_Instance;
+	}
+	
+	//------------------------------------------------
+	private function OnInit():void
+	{
+		this.title = ZG_Utils.TranslateString("Quick Start");
+		m_Htmltext.htmlText = FT_QuickStart.GetHtml();
+	}
+	//---------------------------------
+	
+	//--------------------------------------------------------------
+	// this prevents the window from being closed and just hides it
+	private function OnClosing(event:Event):void
+	{
+		event.preventDefault();			 	
+		s_Instance.visible = false;					   
+	}
+	//----------------------------------------------------------
+		
+		]]>
+	</fx:Script>
+	<s:Image  top="5" left="5" right="5" source="assets/FLATT_img.jpg">
+		
+	</s:Image>
+	<mx:HTML id="m_Htmltext" left="5" right="5" top="80" bottom="5">
+
+	</mx:HTML>
+</s:Window>

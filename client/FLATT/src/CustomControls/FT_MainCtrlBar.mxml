@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:BorderContainer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="35"
+				    backgroundColor="#CCCCCC"
+					 creationComplete="OnInit()"
+				    >
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<fx:XML format="e4x" id="m_NewBtnItems">
+			<root>
+				<menuitem label="Action" enabled="true" />
+				<menuitem label="Task" enabled="true" />
+				<menuitem label="Host" enabled="true"  />
+				<menuitem label="Host Group" enabled="true" />
+				<menuitem label="Host Configuration" enabled="true" />
+			</root>
+		</fx:XML>
+		
+		<fx:XML format="e4x" id="m_RemoveBtnItems">
+			<root>
+				<menuitem label="Action" enabled="true"/>
+				<menuitem label="Task or Action in Task" enabled="true"/>
+				<menuitem label="Host or Host Group" enabled="true"/>
+				<menuitem label="Host Configuration" enabled="true"/>
+			</root>
+		</fx:XML>
+		
+		<fx:XML format="e4x" id="m_ExportBtnItems">
+			<root>
+				<menuitem label="Action" enabled="true"/>
+				<menuitem label="Task or Action in Task" enabled="true"/>
+				<menuitem label="Host Configuration" enabled="true"/>
+				
+			</root>
+		</fx:XML>
+		
+		<fx:XML format="e4x" id="m_ImportBtnItems">
+			<root>
+				<menuitem label="Action" enabled="true"/>
+				<menuitem label="Task" enabled="true"/>
+				<menuitem label="Host Group" enabled="true"/>
+				<menuitem label="Host Configuration" enabled="true"/>
+				<menuitem label="Scripts Folder" enabled="true"/>
+			</root>
+		</fx:XML>
+		
+		
+		
+	</fx:Declarations>
+	
+	
+	<fx:Style>
+		.textLeftStyle 
+		{
+			textAlign: left;
+			fontWeight: normal;
+			fontSize:12
+		}
+	</fx:Style>
+	
+	<fx:Script>
+		
+		
+		<![CDATA[
+			import DesktopApp.*;
+			
+			import FLATTPlugin.*;
+			import FLATTPlugin.FT_Task;
+			
+			import Licensing.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.XMLListCollection;
+			import mx.controls.*;
+			import mx.controls.Menu;
+			import mx.core.FlexGlobals;
+			import mx.events.*;
+			
+			
+			private var STR_HOST:String = "Host";
+			private var STR_HOST_GRP:String = "Host Group";
+			private var STR_ACTION:String = "Action";
+			private var STR_TASK:String = "Task";
+			private var STR_ACTION_IN_TASK:String = "Action in Task";
+			private var STR_TASK_OR_ACTION:String = STR_TASK+ " or " + STR_ACTION_IN_TASK;
+			private var STR_HOSTCONFIG:String = "Host Configuration";
+			private var STR_HOST_OR_GRP:String = STR_HOST+" or "+STR_HOST_GRP;
+			private var STR_SCRIPTS_FOLDER:String ="Scripts Folder"
+			
+			private var MENUID_NEW:String  	= "0";
+			private var MENUID_REMOVE:String = "1";
+			private var MENUID_IMPORT:String = "2";
+			private var MENUID_EXPORT:String = "3";
+			
+			private function OnInit():void
+			{
+				m_New.popUp  	=  CreateMenu(MENUID_NEW, m_New,  m_NewBtnItems);
+				m_Remove.popUp  =  CreateMenu(MENUID_REMOVE,m_Remove,m_RemoveBtnItems);
+				m_Export.popUp  =  CreateMenu(MENUID_EXPORT,m_Export,m_ExportBtnItems);	
+				m_Import.popUp  =  CreateMenu(MENUID_IMPORT,m_Import,m_ImportBtnItems);
+									
+				
+				FlexGlobals.topLevelApplication.m_HostsView.m_HostsTree.addEventListener(MouseEvent.MOUSE_DOWN,OnTableSelect);
+				FlexGlobals.topLevelApplication.m_PluginView.m_PluginTree.addEventListener(MouseEvent.MOUSE_DOWN,OnTableSelect);				
+				FlexGlobals.topLevelApplication.m_TasksView.m_TasksTree.addEventListener(MouseEvent.MOUSE_DOWN,OnTableSelect);				
+				FlexGlobals.topLevelApplication.m_HostConfigsView.m_HostConfigTree.addEventListener(MouseEvent.MOUSE_DOWN,OnTableSelect);
+				
+			}
+			
+			//-------------------------------
+			// click on button does not do anything - everything is handled through submenus
+			private function OnClick(event:MouseEvent):void
+			{
+				switch(event.currentTarget)
+				{
+					default:
+						break;
+				}
+			}
+			
+			//--------------------------------------------
+			private function CreateMenu(id:String,btn:DisplayObject, menuData:Object):Menu
+			{
+				var ret:Menu = Menu.createMenu(parent,menuData,false);
+				ret.labelField = "@label";
+				ret.id = id;
+				ret.iconFunction = MenuItemIconFunc;
+				ret.addEventListener(MenuEvent.ITEM_CLICK,OnMenuItemClick);
+				return ret;
+			}
+			//-------------------------------------------
+			private function OnMenuItemClick(event:MenuEvent):void
+			{
+				switch(event.menu.id)
+				{
+					case MENUID_EXPORT:
+						HandleExportMenu(event);
+						break;
+					case MENUID_IMPORT:
+						HandleImportMenu(event);
+						break;
+					case MENUID_REMOVE:
+						HandleRemoveMenu(event);
+						break;
+					case MENUID_NEW:
+						HandleNewMenu(event);
+						break;
+						
+				}
+			}
+			//---------------------------------
+			private function OnPopupOpen(event:DropdownEvent):void
+			{
+				var button:PopUpButton = event.currentTarget as PopUpButton;
+				if(button !=null)
+				{
+					var menu:Menu = button.popUp as Menu;
+					
+					
+					switch(button.id)
+					{
+						case "m_Remove":
+						case "m_Export":
+							DisEnableMenuItems(menu);
+							break;
+					}
+				}
+				
+			}
+			//--------------------------------
+			private function HandleExportMenu(evt:MenuEvent):void
+			{
+				var menuLabel:String = evt.item.@label;
+				switch(menuLabel)
+				{
+					/*case STR_HOST:
+					case STR_HOST_GRP:
+					case STR_HOST_OR_GRP:
+						FlexGlobals.topLevelApplication.m_HostsView.m_HostsTree.OnRemove();
+						break;*/
+					case STR_ACTION:
+						FlexGlobals.topLevelApplication.m_PluginView.m_PluginTree.HandleExportPlugin();
+						break;
+					case STR_TASK:
+					case STR_TASK_OR_ACTION:
+						FlexGlobals.topLevelApplication.m_TasksView.m_TasksTree.OnExport();							
+						break;
+					case STR_HOSTCONFIG:
+						FlexGlobals.topLevelApplication.m_HostConfigsView.m_HostConfigTree.OnExport();
+						break;
+				}
+			}
+			//--------------------------------
+			private function HandleNewMenu(evt:MenuEvent):void
+			{
+				var itemName:String = evt.item.@label;
+				switch(itemName)
+				{
+					case STR_HOST:
+						FlexGlobals.topLevelApplication.m_HostsView.OnAddHost();
+						break;
+					case STR_HOST_GRP:
+						FlexGlobals.topLevelApplication.m_HostsView.m_HostsTree.OnAddGroup();						
+						break;
+					case STR_ACTION:
+						FlexGlobals.topLevelApplication.m_PluginView.m_PluginTree.HandleNewPlugin(true);
+						break;
+					case STR_TASK:
+						FlexGlobals.topLevelApplication.m_TasksView.m_TasksTree.OnNewTask();							
+						break;
+					case STR_HOSTCONFIG:
+						// new hostconfig does import??
+						FlexGlobals.topLevelApplication.m_HostConfigsView.HandleNew();
+						break;
+				}
+			}
+			//--------------------------------
+			private function HandleImportMenu(evt:MenuEvent):void
+			{
+				var itemName:String = evt.item.@label;
+				switch(itemName)
+				{
+					case STR_HOST:
+					case STR_HOST_GRP:
+					case STR_HOST_OR_GRP:
+						FlexGlobals.topLevelApplication.m_HostsView.OnImportHostGrp();
+						break;
+					case STR_ACTION:
+						HandleActionImport();
+						break;
+					case STR_TASK:
+						FlexGlobals.topLevelApplication.m_TasksView.m_TasksTree.OnImport();							
+						break;
+					case STR_HOSTCONFIG:
+						FlexGlobals.topLevelApplication.m_HostConfigsView.HandleImport();
+						break;
+					case STR_SCRIPTS_FOLDER:
+						HandleScriptsImport();
+						break;
+				}
+			}
+			//--------------------------------
+			private function HandleRemoveMenu(evt:MenuEvent):void
+			{
+				var menuLabel:String = evt.item.@label;
+				switch(menuLabel)
+				{
+					case STR_HOST:
+					case STR_HOST_GRP:
+					case STR_HOST_OR_GRP:
+						FlexGlobals.topLevelApplication.m_HostsView.m_HostsTree.OnRemove();
+						break;
+					case STR_ACTION:
+						FlexGlobals.topLevelApplication.m_PluginView.m_PluginTree.HandleDeletePlugin();
+						break;
+					case STR_TASK:
+					case this.STR_TASK_OR_ACTION:
+						FlexGlobals.topLevelApplication.m_TasksView.m_TasksTree.OnDelete();							
+						break;
+					case STR_HOSTCONFIG:
+						FlexGlobals.topLevelApplication.m_HostConfigsView.m_HostConfigTree.OnRemove();
+						break;
+				}
+			}
+			//-------------------------------------
+			private function OnTableSelect(evt:Event):void
+			{
+				m_Remove.enabled = m_Export.enabled = FlexGlobals.topLevelApplication.AnyTableSelected();
+			}
+			//----------------------------------------------
+			public function HandleActionImport():void
+			{
+				
+				// check if license allows this
+				if(!FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_PLUGINS))
+				{
+					return;
+				}
+				var fileBrowser:ZG_FileUtils = new ZG_FileUtils();
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_COMPLETE,OnReadFileComplete);
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_CANCEL,OnReadFileComplete);		
+				fileBrowser.BrowseReadFile("","");// all file types		
+				
+			}
+			//---------------------------------------------
+			private function HandleScriptsImport():void
+			{
+				var si:FT_ScriptsImporter = new FT_ScriptsImporter();
+				si.ImportScripts();
+			}
+			//---------------------------------------------
+			private function OnReadFileComplete(evt:ZG_Event):void
+			{								
+				if(evt.type == ZG_Event.EVT_READ_FILE_COMPLETE)
+				{			
+					if(evt.data!=null)
+					{							
+						var plugin:FT_Plugin  = new FT_Plugin(evt.data.data as String);
+						if(plugin.IsValid())
+						{
+							FlexGlobals.topLevelApplication.m_PluginView.m_PluginTree.addEventListener(FT_Events.FT_EVT_PLUGIN_INSERTED,OnPluginInserted);
+							FT_PluginManager.GetInstance().Save(plugin);
+													
+						}
+					}
+				}				
+			}
+			//------------------------------------
+			protected function OnPluginInserted(evt:ZG_Event):void
+			{
+				var plugin:FT_Plugin = evt.data as FT_Plugin;
+				if(plugin !=null)
+				{
+					FlexGlobals.topLevelApplication.m_PluginView.m_PluginTree.BringItemIntoView(FT_PluginManager.GetInstance().FindPlugin(plugin.guid));
+					FlexGlobals.topLevelApplication.m_PluginView.m_PluginTree.removeEventListener(FT_Events.FT_EVT_PLUGIN_INSERTED,OnPluginInserted);
+				}
+			}
+			//------------------------------------------------
+			protected function DisEnableMenuItems(menu:Menu):void
+			{
+				// enable - disable menu items based on whether the row in corresponding table is selected
+				var i:int;
+					//var curItem:Object = menu.dataProvider.getItemAt(i);
+				var xmlItems:XMLListCollection = menu.dataProvider as XMLListCollection;
+				for(i = 0; i< xmlItems.length;++i)
+				{
+					var curItem:XML = xmlItems.getItemAt(i) as XML;
+					var s:String = curItem.@label;
+					
+					if(curItem.@label == STR_ACTION)
+					{
+						curItem.@enabled = FlexGlobals.topLevelApplication.IsPluginSelected();
+					}
+					else if (curItem.@label == STR_TASK)
+					{
+						curItem.@enabled = FlexGlobals.topLevelApplication.IsTaskSelected();
+					}
+										
+					else if (curItem.@label == STR_ACTION_IN_TASK || curItem.@label == STR_TASK_OR_ACTION)
+					{
+						curItem.@enabled = (FlexGlobals.topLevelApplication.IsPluginInTaskSelected() || FlexGlobals.topLevelApplication.IsTaskSelected());
+					}
+					
+					else if (curItem.@label == STR_HOST_OR_GRP || curItem.@label == STR_HOST_GRP || curItem.@label == STR_HOST)
+					{
+						curItem.@enabled = FlexGlobals.topLevelApplication.IsHostOrGroupSelected();
+					}
+					else if (curItem.@label == STR_HOSTCONFIG)
+					{
+						curItem.@enabled = FlexGlobals.topLevelApplication.IsHostConfigSelected();
+					}					
+					
+				}
+					
+			}
+			//---------------------------------------------
+			private function MenuItemIconFunc(item:Object):Class
+			{
+				var menuLabel:String = item.@label;
+				var ret:Class = null;
+				
+				switch(menuLabel)
+				{						
+					case STR_HOST:
+					case STR_HOST_OR_GRP:
+						return FT_DesktopApplication.ICON_HOST;
+						break;
+					case STR_HOST_GRP:
+						return FT_DesktopApplication.ICON_GRP;
+						break;
+					case STR_HOSTCONFIG:
+						return FT_DesktopApplication.ICON_HOSTCONFIG;
+						break;					
+					case STR_ACTION:
+						return FT_DesktopApplication.ICON_PLUGIN;
+						break;					
+					case STR_TASK:
+					case STR_ACTION_IN_TASK:
+					case STR_TASK_OR_ACTION:								
+						return FT_DesktopApplication.ICON_TASK;	
+					case STR_SCRIPTS_FOLDER:
+						return FT_DesktopApplication.ICON_SCRIPTS_FLDR;
+						break;					
+				}
+				return null;
+			}
+						
+		]]>
+	</fx:Script>
+	
+	
+	
+	
+	<mx:Button id="m_AddHost" visible="false" left="126" top="-65.4" width="24" height="24"
+			   label="Button" click="OnClick(event)" icon="@Embed('assets/host-16.png')"
+			   toolTip="Add Host"/>
+	<mx:Button id="m_AddGrp" visible="false" y="-65.4" left="159" width="24" height="24"
+			   label="Button" click="OnClick(event)" icon="@Embed('assets/hostgrp-16.png')"
+			   toolTip="Add Group"/>
+	<mx:Button id="m_AddHostConfig" visible="false" left="268" top="-59.4" width="24" height="24"
+			   label="Button" click="OnClick(event)" icon="@Embed('assets/config-file-22.png')"
+			   toolTip="Add Group"/>
+	<mx:VRule id="m_Separator" visible="false" left="354" top="-59.4" width="2" height="24"/>	
+	<mx:Button id="m_NewTask" visible="false" left="92" top="-65.4" width="24" height="24" label="N"
+			   click="OnClick(event)" icon="@Embed(source='assets/task-22.png')" toolTip="New Task"/>
+	<mx:Button id="m_NewAction" visible="false" left="58" top="-65.4" width="24" height="24"
+			   label="N" click="OnClick(event)" icon="@Embed(source='assets/action-22.png')"
+			   toolTip="New Task"/>
+	
+		<!-- items below this line are visible -->
+	
+	<mx:PopUpButton id="m_Remove" visible="true" left="93" top="4.5" width="85" height="24"
+					label="Delete" click="OnClick(event)" enabled="false" fontSize="11"
+					fontWeight="bold" icon="@Embed('assets/remove-16.png')"
+					toolTip="Delete selected item"
+					popUpStyleName="textLeftStyle"
+					open="OnPopupOpen(event)"
+					
+					/>
+	<mx:PopUpButton id="m_Export" left="185" top="4.5" width="90" height="24" label="Export"
+					click="OnClick(event)" enabled="false" fontSize="11" fontWeight="bold"
+					icon="@Embed('assets/export-22.png')" toolTip="Export Action or Task"
+					 popUpStyleName="textLeftStyle"
+					 open="OnPopupOpen(event)"
+					/>
+	<mx:PopUpButton id="m_Import" left="282" top="4.6" width="90" height="24" label="Import"
+					click="OnClick(event)" enabled="true" fontSize="11" fontWeight="bold"
+					icon="@Embed('assets/import-22.png')" toolTip="Export Action or Task"
+					popUpStyleName="textLeftStyle"
+					/>
+	
+	<mx:PopUpButton id="m_New" left="9" top="4.600006" width="76" height="24" label="New"
+					click="OnClick(event)" fontSize="11" fontWeight="bold"
+					icon="@Embed('assets/edit_add.png')" toolTip="Create a new item"
+					popUpStyleName="textLeftStyle"/>
+</s:BorderContainer>

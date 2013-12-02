@@ -1,0 +1,1 @@
+#This is sample configuration file. To use with a command,drag it over the icon of a host or a group.ARP=/usr/bin/arpTOP			/bin/topSUDO   /usr/sbin/sudoNETSTAT /bin/netstat

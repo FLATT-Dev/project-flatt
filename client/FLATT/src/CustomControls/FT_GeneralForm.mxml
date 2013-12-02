@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Form xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="100%"
+		  creationComplete="OnInit()" borderVisible="false"  xmlns:CustomControls="CustomControls.*">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<CustomControls:FT_IpAddressValidator id="m_IpAddrValidator" triggerEvent="">
+			
+		</CustomControls:FT_IpAddressValidator>
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import Application.*;
+			
+			import TargetHostManagement.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.*;
+			import mx.core.FlexGlobals;
+			import mx.events.ValidationResultEvent;
+			import mx.managers.*;
+			
+			import spark.events.*;
+			
+			protected function OnInit():void
+			{				
+				ReadPrefs();	
+				this.m_IpAddrValidator.SetIpAddrInput(fi_HostRangeStart,fi_HostRangeEnd);
+				InitAuthMethod();
+			}
+			
+			//-------------------------------------
+			public function ReadPrefs():void
+			{
+				fi_MasterUN.text = FT_Prefs.GetInstance().GetMasterUserName();
+				
+				/*fi_AuthField.text = FT_Prefs.GetInstance().GetMasterPassword(); 
+				if(fi_AuthField.text == "")
+				{
+					fi_AuthField.text = 
+				}*/
+				
+				fi_HostRangeStart.text = FT_Prefs.GetInstance().GetHostScanStartIP();
+				fi_HostRangeEnd.text = FT_Prefs.GetInstance().GetHostScanEndIP();
+				fi_EnableScanOnStart.selected = FT_Prefs.GetInstance().GetScanHostsOnStartup();
+				fi_EnableToolTips.selected = FT_Prefs.GetInstance().GetEnableTooltips();
+				
+				
+				
+								
+			}
+			//-----------------------------
+			public function Save():void
+			{
+				
+				SaveCredentials();
+				
+				FT_Prefs.GetInstance().SetHostScanStartIP(fi_HostRangeStart.text);
+				FT_Prefs.GetInstance().SetHostScanEndIP(fi_HostRangeEnd.text);
+				FT_Prefs.GetInstance().SetScanHostsOnStartup(fi_EnableScanOnStart.selected);
+				FT_Prefs.GetInstance().SetEnableTooltips(fi_EnableToolTips.selected);
+				FlexGlobals.topLevelApplication.DisEnableTreeTooltips();
+				
+			}
+			//------------------------------------------
+			// Save whatever creds user selected
+			private function SaveCredentials():void
+			{
+				// save password or key file 
+				switch(m_AuthMetodList.selectedIndex)
+				{
+					case FT_TargetHost.AUTH_METHOD_PASSWD:
+						FT_Prefs.GetInstance().SaveMasterUserNamePassword(fi_MasterUN.text,fi_AuthField.text);
+						FT_Prefs.GetInstance().SaveMasterSshKeyPath("");
+						break;
+					case FT_TargetHost.AUTH_METHOD_KEYFILE:
+						FT_Prefs.GetInstance().SaveMasterSshKeyPath(fi_AuthField.text);
+						FT_Prefs.GetInstance().SaveMasterUserNamePassword(fi_MasterUN.text,"");					
+						break;					
+				}				
+			}
+			//------------------------------------------
+			private function ValidateIP(eventObj:Event):void
+			{
+				m_IpAddrValidator.listener=eventObj.currentTarget;
+				var ipAddrEvt:ValidationResultEvent = m_IpAddrValidator.validate(eventObj.currentTarget.text);
+				var ipAddrValid:Boolean = (ipAddrEvt.results== null || ipAddrEvt.results.length == 0);
+				
+				
+				//if everything is valid - dispatch event which will remove red frame around the text input fields
+				if(ipAddrValid && ZG_URLValidator.ValidIP(fi_HostRangeStart.text) && ZG_URLValidator.ValidIP(fi_HostRangeEnd.text))
+				{
+					var secondEditField:Object = (eventObj.currentTarget == fi_HostRangeStart ? fi_HostRangeEnd:fi_HostRangeStart);
+					var  resultEvent: ValidationResultEvent = new ValidationResultEvent(ValidationResultEvent.VALID);
+					m_IpAddrValidator.dispatchEvent(resultEvent);
+					m_IpAddrValidator.listener = secondEditField;
+					m_IpAddrValidator.dispatchEvent(resultEvent);
+				}
+											   
+				ZG_Utils.ZG_DispatchEvent(this,FT_Events.FT_EVT_IP_ADDR_VALIDATE,ipAddrValid);
+			}
+			
+			//--------------------------------------------------------------
+			protected function OnListSelChange(event:IndexChangeEvent):void
+			{
+				
+				AdjustUIForAuthMethod();				
+			}
+			//-----------------------------------------------------
+			public function InitAuthMethod():void
+			{
+				//If the proxy panel never was shown proxy type list is null, so check
+				if(m_AuthMetodList!=null)
+				{
+					if(m_AuthMetodList.dataProvider == null)
+					{
+						m_AuthMetodList.dataProvider = new ArrayCollection(new Array(
+							ZG_Utils.TranslateString("Password"),
+							ZG_Utils.TranslateString("Key File")));
+						
+					}	
+					/* If no password - check the key file. If no key file - default to password.  */
+					m_AuthMetodList.selectedIndex = FT_TargetHost.AUTH_METHOD_PASSWD;
+					if( FT_Prefs.GetInstance().GetMasterPassword() == "" && FT_Prefs.GetInstance().GetMasterSshKeyPath()!="")
+					{
+						m_AuthMetodList.selectedIndex = FT_TargetHost.AUTH_METHOD_KEYFILE;
+					}
+					
+					AdjustUIForAuthMethod();
+					
+				}				
+			}
+			//---------------------------------------------			
+			private function AdjustUIForAuthMethod():void
+			{				
+				/*fi_MasterUN.text = FT_Prefs.GetInstance().GetMasterUserName();
+				fi_MasterPasswd.text = FT_Prefs.GetInstance().GetMasterPassword();*/
+					
+				switch(m_AuthMetodList.selectedIndex)
+				{
+					case FT_TargetHost.AUTH_METHOD_PASSWD:
+						fi_AuthField.text = FT_Prefs.GetInstance().GetMasterPassword();
+						m_BrowseButton.visible = false;
+						m_AuthField.label = "Master Password";	
+						fi_AuthField.displayAsPassword = true;
+						break;
+					case FT_TargetHost.AUTH_METHOD_KEYFILE:
+						fi_AuthField.text = FT_Prefs.GetInstance().GetMasterSshKeyPath();
+						m_BrowseButton.visible = true;
+						fi_AuthField.displayAsPassword = false;
+						m_AuthField.label = "Master Key File";					
+						break;
+				}				
+			}
+			//---------------------------------
+			private function OnBrowse(event:MouseEvent):void
+			{
+				var fileBrowser:ZG_FileUtils = new ZG_FileUtils();
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_COMPLETE,OnReadFileComplete);
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_CANCEL,OnReadFileComplete);		
+				fileBrowser.BrowseReadFile("","",true);// all file types, only file path			
+			}
+			//--------------------------------------------------------
+			private function OnReadFileComplete(evt:ZG_Event):void
+			{								
+				if(evt.type == ZG_Event.EVT_READ_FILE_COMPLETE)
+				{			
+					if(evt.data!=null)
+					{	
+						var selectedFile:File = evt.data as File;
+						if(selectedFile!=null)
+						{	
+							fi_AuthField.text = selectedFile.nativePath;
+						}
+						
+					}
+				}				
+			}
+
+		]]>
+	</fx:Script>
+	
+	
+	
+	<mx:FormItem label="Master Username" fontWeight="bold"  width="90%">
+		<s:TextInput  id="fi_MasterUN" width="100%" toolTip="This username will be used when host username is blank" fontWeight="normal">			
+		</s:TextInput>			   
+	</mx:FormItem>
+	
+	<mx:FormItem label="Authentication" >
+		<s:DropDownList id="m_AuthMetodList" width="200" 
+						fontWeight="normal"  change="OnListSelChange(event)"></s:DropDownList>		
+	</mx:FormItem> 	
+	
+	<mx:FormItem label="Master Password" fontWeight="bold" id="m_AuthField" direction="horizontal" horizontalGap="10">			
+		<s:TextInput id="fi_AuthField"  fontWeight="normal" toolTip="Leave empty to use master user master password"
+					 displayAsPassword="true" 
+					 width="200" 
+					 />		
+		<s:Button label="Browse..." id="m_BrowseButton" fontWeight="normal" click="OnBrowse(event)" visible="false"/>
+	</mx:FormItem> 
+	
+	<mx:FormItem direction="horizontal" label="Network Scan Range" fontWeight="bold" >
+		
+			<s:Label fontWeight="normal" paddingTop="6" text="Start IP:"></s:Label>				
+			<s:TextInput    id="fi_HostRangeStart" text="0.0.0.0" 
+						toolTip="Starting IP address to scan for hosts. Leave blank or zero to scan the jsshproxy server subnet."
+						fontWeight="normal" 
+						keyUp="ValidateIP(event)">			
+		</s:TextInput>	
+		<s:Label  fontWeight="normal" paddingTop="6" text="End IP:"></s:Label>		
+		
+		<s:TextInput   id="fi_HostRangeEnd" text="0.0.0.0"
+					   toolTip="Ending IP address to scan for hosts. Leave blank or zero to scan the jsshproxy server subnet." 
+					   fontWeight="normal"
+					    keyUp="ValidateIP(event)"
+					    >			
+		</s:TextInput>	
+		
+	</mx:FormItem>
+	<mx:FormItem label="Enable scan on startup" fontWeight="bold">
+		<s:CheckBox  id="fi_EnableScanOnStart">
+			
+		</s:CheckBox>
+	</mx:FormItem>
+	<mx:FormItem label="Enable tooltips in views" fontWeight="bold" visible="true" toolTip="Enables tooltips in Actions, Tasks, Hosts and Host Configuration views">
+		<s:CheckBox  id="fi_EnableToolTips">
+			
+		</s:CheckBox>
+	</mx:FormItem>
+	
+	
+</mx:Form>
+

@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:DataGrid xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			xmlns:s="library://ns.adobe.com/flex/spark" 
+			xmlns:mx="library://ns.adobe.com/flex/mx" width="400" height="300">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		
+		
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import CommonUI.*;
+			
+			import FLATTPlugin.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.XMLListCollection;
+			import mx.controls.dataGridClasses.DataGridColumn;
+			
+			import spark.utils.*;
+		
+			// build table UI
+			public function BuildDataGridUI(result:FT_PluginResult):void
+			{
+				var colNames:Array = new Array();
+				var dgCols:Array  = new Array();
+				var i:int;
+				// append data really means starting a new host
+				//trace ("result.appendData = " + result.appendData);
+				if(result.appendData)
+				{
+					// if appending data, the column names have been already set up
+					// extract them from the table and pass in
+					for(i=0; i < this.columns.length;++i)
+					{
+						colNames.push(this.columns[i].dataField);
+					}
+				}
+				
+				var xmlDP:XMLListCollection = result.GetData(colNames) as XMLListCollection;
+				//trace("Got data: " +xmlDP.toString());
+				
+				var nextHostRow:int = GetNextHostRow(result.hostName);
+				// not appending data - set up columns
+				if(!result.appendData)
+				{
+					// return index of row where  to start insrting data.
+					// if host data is not there, -1 is returned
+					
+					if(nextHostRow == -1)
+					{
+						// set up columns only if they have not been set up
+						for(i = 0; i < colNames.length;++i)
+						{
+							var newCol:DataGridColumn  = new DataGridColumn(colNames[i]);
+							newCol.dataField = colNames[i];
+							newCol.headerText = colNames[i];
+							newCol.itemRenderer = new ClassFactory(FT_TableResultLabel);
+							
+							newCol.visible = true;
+							dgCols.push(newCol);
+						}
+						
+						// For some reason I cannot just say datagrid.columns.push (newColumn)
+						// to add a new column. Need to create first and then assign the new array of columns to datagrid.columns property
+						this.columns = dgCols;
+						SafeAddToDataProvider(xmlDP);						
+					}
+					else
+					{
+						
+						InsertData(nextHostRow,xmlDP);
+					}
+				}
+				else
+				{
+					// we have multiple hosts,.
+					// See if data needs to be appended or inserted
+					if(nextHostRow == -1)
+					{
+						SafeAddToDataProvider(xmlDP);
+					}
+					else
+					{
+						InsertData(nextHostRow,xmlDP);
+					}
+				}
+				this.visible = true;
+			}
+		//------------------------------
+			// find host name and search for the next occurrence of "Data from" string/
+			protected function GetNextHostRow(hostName:String):int
+			{
+				var ret: int = -1;
+				var xmlList:ArrayCollection = this.dataProvider as ArrayCollection;
+				
+				if( xmlList!=null)
+				{									
+					for(var i:int = 0; i < xmlList.length; ++i)
+					{
+						var cur:XML = xmlList.getItemAt(i) as XML;
+						
+						if(cur!=null )
+						{
+							if(cur.attribute("host")!=null)
+							{
+								if(cur.@host == hostName)
+								{
+									// save the  offset to the first row for this host
+									ret = i;
+								}
+								else
+								{
+									// this is some other host
+									continue;
+								}
+							}
+							
+						}
+						if(ret >=0)
+						{
+							ret++;
+						}	
+						
+					}
+				}
+				return ret;
+			}
+			//-------------------------------
+			// inserts new data at a given offset
+			protected function InsertData(nextHostRow:int,xmlDP:XMLListCollection):void
+			{
+				var curList:ArrayCollection = this.dataProvider as ArrayCollection;
+				if(curList!=null)
+				{
+					// first row of xmllist always contains line "Data from <host>"
+					// don't include it when adding a chunk
+					for(var i:int=1; i < xmlDP.length;++i)
+					{
+						curList.addItemAt(xmlDP.getItemAt(i),nextHostRow++);
+					}
+					this.dataProvider = curList; // force refresh
+				}
+			}
+			//-----------------------------------------------
+			// requests come out of order, only assign xmlDP to dataProvider if dataProvider is null, otherwise append
+			// This fixes a nasty bug where sometimes not all hosts' results were displayed. This happened becacause
+			// the provider assignment happened after some data was already added to it
+			private function SafeAddToDataProvider(xmlDP:XMLListCollection):void
+			{
+				if(this.dataProvider == null)
+				{
+					this.dataProvider = new ArrayCollection();
+				}
+				
+				{
+					this.dataProvider.addAll(xmlDP);
+				}
+			}
+		]]>
+	</fx:Script>
+</mx:DataGrid>

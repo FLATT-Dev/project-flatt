@@ -1,0 +1,767 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Tree xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 borderStyle="none"
+		 folderClosedIcon="@Embed(source='assets/task-22.png')"
+		 folderOpenIcon="@Embed(source='assets/task-22.png')"
+		 creationComplete="OnInit()"		 
+		 itemOpen="OnItemOpen(event)" 	
+		 click="OnClick(event)"
+		 useRollOver="false" 
+		 dropEnabled="true"	
+		 dragEnabled="true"		
+		 dragMoveEnabled="false" 
+		 editable="true"
+		 doubleClickEnabled="true"		  
+		 itemDoubleClick="tree1_doubleClickHandler(event)"
+		 itemEditBegin="tree1_itemEditBeginHandler(event)"
+		 itemEditBeginning="tree1_itemEditBeginningHandler(event)"
+		 itemEditEnd="tree1_itemEditEndHandler(event)"
+		 showDataTips="true"
+		 dataTipFunction="DataTipFunc"
+		 >
+	<fx:Declarations>
+		<!--dragMoveEnabled must be disabled otherwise item is moved and copied to another control -->
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import CustomControls.Renderers.*;
+			
+			import DesktopApp.*;
+			
+			import FLATTPlugin.*;
+			
+			import Licensing.*;
+			
+			import TargetHostManagement.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Data.*;
+			import com.ZG.Events.*;
+			import com.ZG.UserObjects.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.*;
+			import mx.controls.Alert;
+			import mx.controls.TextInput;
+			import mx.controls.listClasses.*;
+			import mx.core.FlexGlobals;
+			import mx.core.UIComponent;
+			import mx.events.*;
+			import mx.events.DragEvent;
+			import mx.managers.DragManager;
+			import mx.managers.PopUpManager;
+			
+			import spark.layouts.supportClasses.DropLocation; 
+			
+			
+			[Bindable] 
+			//private var m_TreeObjects:ArrayCollection = new ArrayCollection();
+			private var m_DragHelper:FT_DragHelper = new FT_DragHelper();
+			
+			private static var CM_NEW_INDEX:int = 0
+			private static var CM_DELETE_INDEX:int = 1;
+			private static var CM_EDIT_INDEX: int = 2;
+			private static var CM_EXPORT_INDEX:int = 3;
+			
+			private static const  STR_NEW:String = ZG_Utils.TranslateString("New Task");
+			private static const  STR_DELETE:String = ZG_Utils.TranslateString("Delete");
+			private static const  STR_EDIT_PLUGIN:String = ZG_Utils.TranslateString("Edit Action...");
+			private static const  STR_EXPORT_PLUGIN:String = ZG_Utils.TranslateString("Export...");
+			private var m_DoubleClick:Boolean; // whether or not double click happened;
+			
+			private function OnInit():void
+			{
+				FT_PluginManager.GetInstance().addEventListener(FT_Events.FT_EVT_INSERT_TASK,OnInsertTask);
+				// data provider for tree points to plugin manager plugin collection
+				// It is organized by category where categories are plugin containers
+				dataProvider= FT_PluginManager.GetInstance().tasksColl;				
+				
+				//TODO: move into class tree	
+				this.contextMenu = new ContextMenu();
+				
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_NEW,OnMenuItemSelect,true);// set the label
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_DELETE,OnMenuItemSelect,true);// set the label
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_EDIT_PLUGIN,OnMenuItemSelect,true);// set the label
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_EXPORT_PLUGIN,OnMenuItemSelect,true);// set the label
+				
+				this.contextMenu.addEventListener(ContextMenuEvent.MENU_SELECT, OnContextMenuSelect);
+				m_DragHelper.helpee = this;
+				m_DragHelper.allowsPluginDrop = true;
+			
+				addEventListener(DragEvent.DRAG_ENTER, OnDragEnter, true, 0, true);
+				addEventListener(DragEvent.DRAG_OVER, OnDragOver, true, 0, true);
+				addEventListener(DragEvent.DRAG_DROP, OnDragDrop);//, true, 0, true);
+				addEventListener(DragEvent.DRAG_COMPLETE,OnDragComplete, true, 0, true);
+				
+				this.itemRenderer = new ClassFactory(FT_TaskItemRenderer);
+
+				
+			}
+			//-----------------------------------------------------------
+			// Insert messages data is an array where the first element is the parent
+			// and the second is the object
+			private function OnInsertTask(evt:ZG_Event):void
+			{
+				
+				FT_PluginManager.GetInstance().Insert(evt.data as ZG_InsertObject);
+				
+			}
+			//-----------------------------------------------------------
+			
+			//---------------------------------------
+			private function OnItemOpen(e:TreeEvent):void 
+			{
+				var c:ZG_PersistentObject = e.item as ZG_PersistentObject;//e.currentTarget as ZG_PersistentObject;//e.item as ZG_PersistentObject;
+				if (c) 
+				{
+					if (!c.childrenLoaded) 
+					{
+						/*	You could also do the loadChildren here to pull the event trigger
+						and listener in the same "level"	*/
+						
+						//need to do something else when load is complete
+						//	c.addEventListener(ZG_PersistentObject.CHILDREN_LOADED, onItemChildrenLoaded);
+					}
+				}
+			}
+			//-------------------------------------------------------------
+			private function OnItemClick(e:ListEvent):void
+			{
+				/*var item:ZG_PersistentObject = this.selectedItem as ZG_PersistentObject;// e.currentTarget.selectedItem as ZG_PersistentObject;// e.item as ZG_PersistentObject;
+				if(item)
+				{
+				
+				}*/
+			}
+			
+			//---------------------------------------------------------------
+			private function OnMenuItemSelect( event:ContextMenuEvent):void               
+			{
+				//trace("OnMenuItemSelect: selected menu = "+ event.currentTarget.name);
+				switch(this.contextMenu.getItemIndex(event.currentTarget as NativeMenuItem))
+				{			
+					case CM_DELETE_INDEX:
+						HandleDelete();
+						break;
+					case CM_NEW_INDEX:
+						HandleNewTask();
+						break;
+					case CM_EDIT_INDEX:
+						HandleEditPlugin();
+						break;
+					case CM_EXPORT_INDEX:
+						HandleExport();
+				}		
+			}
+			//-------------------------------------------------------------------
+			private function HandleDelete():void
+			{
+				var selItem:ZG_PersistentObject = this.selectedItem as ZG_PersistentObject;			
+				var selIndex:int = this.selectedIndex;
+					
+				if(selItem is FT_Task)
+				{
+					FT_PluginManager.GetInstance().Delete(selItem,this.dataProvider as ArrayCollection);
+				}
+				else if(selItem is FT_PluginRef)
+				{
+					// dont delete from storage
+					//XX! DeleteChild sets the parent object( i.e the task) to null
+					// make sure to save it before deleting
+					var parentObj:ZG_PersistentObject = selItem.parentObj;
+					
+					selItem.parentObj.DeleteChild(selItem);
+					FT_PluginManager.GetInstance().Save(parentObj);
+				}
+				selIndex--;
+				if(selIndex < 0 )
+				{
+					selIndex = 0;
+				}
+				this.selectedIndex = selIndex;			
+								
+			}
+			//-----------------------------------------------------------
+			// start plugin editor
+			private function HandleNewTask():void
+			{				
+				
+				if(!FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_TASKS,null,this.dataProvider))
+				{
+					return;
+				}
+				var newTask:FT_Task = new FT_Task();	
+				newTask.name = "Untitled Task";
+				ArrayCollection(this.dataProvider).addItem(newTask);
+				this.selectedItem = newTask;	
+				FT_PluginManager.GetInstance().Save(newTask);
+			}
+			//-----------------------------------------------------------
+			private function HandleEditPlugin():void
+			{
+				if(this.selectedItem is FT_PluginRef)
+				{
+					var plg: FT_Plugin = FT_PluginRef(this.selectedItem).plugin;
+					if(plg!=null)
+					{
+						FT_PluginEditorWindow.GetInstance().SetPlugin(plg);
+					}	
+				}
+			}
+			//---------------------------------------------------------
+			// Export plugin or task which is a subclass of plugin
+			/*private function ExportPlugin(plugin:FT_Plugin):void
+			{
+			
+				var curPlugRef:FT_PluginRef = this.selectedItem as FT_PluginRef;
+				if( curPlugRef.plugin!=null )
+				{
+					ZG_FileUtils.SaveAs(curPlugRef.plugin.ToXMLString(),curPlugRef.plugin.name+".xml");			
+				}			
+			}*/
+			//--------------------------------------------
+			private function HandleExport():void
+			{
+				var exportObj:FT_Plugin = null;
+				// a task is also a plugin , so their export is same
+				if(this.selectedItem is FT_PluginRef)
+				{				
+					exportObj = FT_PluginRef(this.selectedItem).plugin;
+				}
+				else
+				{
+					exportObj = this.selectedItem as FT_Plugin;
+				}
+				if(exportObj!=null)
+				{
+					ZG_FileUtils.SaveAs(exportObj.ToXMLString(),exportObj.name+".xml");	
+				}
+			}
+			//---------------------------------------------------------
+			private function OnContextMenuSelect(event:ContextMenuEvent):void
+			{
+				var rightClickIndex:int = -1;
+				var rightClickItemRenderer:IListItemRenderer = null;
+				var sendSelectEvent:Boolean = false;
+				
+				if (event.mouseTarget is IListItemRenderer)
+				{
+					rightClickItemRenderer = IListItemRenderer(event.mouseTarget);
+				}
+				else if (event.mouseTarget.parent is IListItemRenderer)
+				{
+					rightClickItemRenderer = IListItemRenderer(event.mouseTarget.parent);
+				}
+				
+				if (rightClickItemRenderer != null)
+				{
+					rightClickIndex = this.itemRendererToIndex(rightClickItemRenderer);
+					if(rightClickIndex >=0)
+					{
+						// something was selsected in the list
+						if (this.selectedIndex != rightClickIndex)
+						{
+							this.selectedIndex = rightClickIndex;
+							sendSelectEvent = true;
+						}
+					}
+				}
+				
+				SetupContextMenusForSelectedItem(); 
+				if(rightClickIndex >=0)
+				{					
+					if(sendSelectEvent)
+					{            	
+						//send onclick event so that the item is selected           	
+						dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK)); 
+					}					
+				}
+			}
+			//----------------------------------------------------
+			// Delete plugin context menu is only enabled if plugin is under cursor
+			private function SetupContextMenusForSelectedItem():void
+			{
+				
+				//Delete
+				var cmi:ContextMenuItem = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_DELETE);				
+				if(cmi !=null)
+				{
+					// assume delete is always there
+					cmi.enabled = (this.selectedItem is FT_Task || this.selectedItem is FT_PluginRef);
+				}
+				//New
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_NEW);
+				if(cmi!=null)
+				{
+					cmi.enabled = true;//(this.selectedItem is FT_Task);
+				}
+				//Edit	
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_EDIT_PLUGIN);				
+				if(cmi!=null)
+				{
+					cmi.enabled = (this.selectedItem!=null && (this.selectedItem is FT_PluginRef) && (FT_PluginRef(this.selectedItem).plugin!=null));
+				}
+				//Export
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_EXPORT_PLUGIN);				
+				if(cmi!=null)
+				{
+					cmi.enabled = this.selectedItem!=null; //true;//((this.selectedItem is FT_PluginRef) && (FT_PluginRef(this.selectedItem).plugin!=null));
+				}								
+			}
+			//--------------------------------------
+			// this assumes that only one object is being dragged
+			protected function OnDragDrop(event:DragEvent):void
+			{
+				var targetItem:ZG_PersistentObject = null; // where the drop item is being dropped
+				
+				//this is the object we're dragging
+				var dropItem:ZG_PersistentObject = m_DragHelper.GetDragSourceObject(event.dragSource) as ZG_PersistentObject;
+				var renderer:IListItemRenderer = null;
+				var dropIndex:int = calculateDropIndex(event);
+				
+				trace("FT_TaskTree:OnDragDrop");
+				// dont allow item to be inserted by tree code
+				event.preventDefault();
+				// for now handle plugins only 
+				// TODO: handle files maybe??
+				// 3 cases:
+				/*
+					1. Drop item is a folder (task)
+					2. Drop item is a plugin ref
+					3. Neither. - new task
+				*/
+				
+				if( dropItem is FT_Plugin || dropItem is FT_PluginRef /*maybe file?*/ )
+				{					
+					// find the place the user is dropping the new item
+					renderer = this.indexToItemRenderer(dropIndex);	
+					if(renderer != null )
+					{
+						// target item exists - either a task or a pluginref.					
+						targetItem = renderer.data as ZG_PersistentObject;
+						// The  item was dropped on a task container
+						if(targetItem is FT_Task)
+						{						
+							HandleDropOnTaskFolder(targetItem,dropItem,dropIndex,event);							
+						}
+						else
+						{
+							HandleDropInTree(targetItem,dropItem,dropIndex,event);
+														
+						}
+					}
+					else
+					{						
+						if(!FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_TASKS,
+							null,this.dataProvider))
+						{
+							hideDropFeedback(event);
+							return;
+						}
+						DD_NewTask(dropItem,dropIndex,event);												
+					}
+				}										
+				hideDropFeedback(event);
+				FT_PluginManager.GetInstance().SaveTasks();
+			}					
+			
+			//-------------------------------------
+			//TODO: Delete if not needed
+			protected function OnDragComplete(event:DragEvent):void
+			{
+				
+				trace("FT_TaskTree:OnDragComplete");	
+				
+			}
+			
+			//-----------------------------------------------
+			protected function OnDragOver(event:DragEvent):void
+			{
+				trace("FT_Task:DragOver");
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+				
+				// Explpicitly handle the dragOver event. 
+				//event.preventDefault(); 
+				// Since you are explicitly handling the dragOver event, 
+				// call showDropIndicator() to have the drop target 
+				// display the drop indicator. 
+				// The drop indicator is removed 
+				// automatically for the list controls by the built-in 
+				// event handler for the dragDrop event. 
+				//var dropLocal:DropLocation = event.currentTarget.layout.calculateDropLocation(event); 
+				//event.currentTarget.layout.showDropIndicator(dropLocal); 
+				//if(obj is FT_Task)
+				{
+					this.selectedIndex = this.calculateDropIndex(event);
+				}
+				
+				//event.currentTarget.showDropFeedback(event);
+				
+				if (m_DragHelper.DragObjectAllowed(obj)) 
+				{ 
+					
+					// Set the border to green to indicate that 
+					// this is a drop target. 
+					// Since the dragOver event is dispatched continuosly 
+					// as you move over the drop target, only set it once. 
+				
+					/*if (borderColorSet == false) { 
+						tempBorderColor = event.currentTarget.getStyle('borderColor'); 
+						borderColorSet = true; 
+					}*/ 
+					// Set the drag-feedback indicator based on the 
+					// type of drag-and-drop operation. 
+					event.currentTarget.setStyle('borderColor', 'green'); 
+					if (event.ctrlKey) 
+					{ 
+						DragManager.showFeedback(DragManager.COPY); 
+						return; 
+					}
+					else if (event.shiftKey) 
+					{ 
+						DragManager.showFeedback(DragManager.LINK); 
+						return; 
+					}
+					else 
+					{ 
+						DragManager.showFeedback(DragManager.MOVE); 
+						return; 
+					} 
+				} 
+				// Drag not allowed. 
+				DragManager.showFeedback(DragManager.NONE); 
+			}
+			//-----------------------------------------------			
+			protected function OnDragEnter(event:DragEvent):void
+			{
+				trace("FT_Task:OnDragEnter");
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+				
+				if(obj!=null)
+				{
+					if( m_DragHelper.DragObjectAllowed(obj))
+					{						
+						DragManager.acceptDragDrop(event.currentTarget as UIComponent);		
+						DragManager.showFeedback(DragManager.MOVE);
+					}
+					else
+					{
+						//only allow objects of type plugin to be dragged on	
+						trace("object type not plugin, disallowing drag");
+					}
+				}				
+			}
+			//-----------------------------
+			// TODO: put this in hosts list as well			
+			protected function tree1_doubleClickHandler(event: ListEvent ):void
+			{
+				var selItem:ZG_PersistentObject = this.selectedItem as ZG_PersistentObject;
+				
+				if(selItem is FT_Task)
+				{
+					var renderer:IListItemRenderer = event.itemRenderer;
+					if(renderer !=null )
+					{
+						// make sure the edit width does not run off to the right
+						renderer.width = (this.width - 20);					
+					}
+					Tree( event.target ).editedItemPosition = { columnIndex: 0, rowIndex: event.rowIndex };
+					m_DoubleClick = true;
+				}
+				else if (selItem is FT_PluginRef)
+				{
+					FT_PluginManager.GetInstance().StartExecutingPlugin(FT_PluginRef(selItem).plugin);
+				}
+			}
+			//----------------------------------------------------------
+			protected function tree1_itemEditBeginningHandler(event:ListEvent):void
+			{				
+				event.preventDefault();
+			}
+			//------------------------------------------
+			protected function tree1_itemEditEndHandler(event:ListEvent):void
+			{
+				var selectedTask : FT_Task = this.selectedItem as FT_Task;
+				var editorInstance:TextInput = event.currentTarget.itemEditorInstance;
+				// compare with the label because it has the num items appended to itedit
+				if(selectedTask!=null && editorInstance!=null && editorInstance.text!=selectedTask.label)
+				{
+					selectedTask.name = editorInstance.text;
+					FT_PluginManager.GetInstance().Save(selectedTask);
+				}
+				m_DoubleClick = !m_DoubleClick ;
+				
+			}
+			//---------------------------------------------
+			// this fixes a problem where editing is enabled when window comes into focus
+			protected function tree1_itemEditBeginHandler(event:ListEvent):void
+			{
+				// TODO Auto-generated method stub
+				if(!m_DoubleClick)
+				{
+					event.preventDefault();
+				}
+				else
+				{
+					trace("begin edit: preventing edit cause it's not dbl click");
+				}
+			}
+			//-----------------------------------------
+			// handle drop on task folder. Can be a plugin, or ref
+			protected function HandleDropOnTaskFolder(targetItem:ZG_PersistentObject,
+													  dropItem:ZG_PersistentObject,
+													  dropIndex:int, event:DragEvent):void
+			{
+				var pluginRef:FT_PluginRef = null;
+				if(dropItem is FT_Plugin)
+				{
+					// new plugin is being dropped on a task folder
+					pluginRef = FT_PluginRef.Create(dropItem as FT_Plugin);										
+				}
+				else if (dropItem is FT_PluginRef)
+				{
+					// pluginref is dropped on task folder					
+					pluginRef = FT_PluginRef.Copy(dropItem as FT_PluginRef);
+					if(!event.shiftKey)
+					{
+						// item is being moved - delete from previous location
+						dropItem.parentObj.DeleteChild(dropItem);
+					}					
+				}
+				if(pluginRef!=null)
+				{
+					targetItem.AddChild(pluginRef,dropIndex);	
+					this.expandItem(targetItem,true);
+					this.selectedItem = pluginRef;
+				}
+			}
+			//-------------------------------------------------------
+			private function DD_NewTask(dropItem:ZG_PersistentObject,dropIndex:int,event:DragEvent):void
+			{
+				// this means that user is dropping an item in a place where there are no 
+				// existing items - create a new task
+				trace(" DD_NewTask,drop on index " + dropIndex);
+				var newTask:FT_Task = new FT_Task();	
+				newTask.name = "Untitled Task";
+				
+				var pluginRef:FT_PluginRef;
+				
+				if(dropItem is FT_Plugin)
+				{
+					pluginRef = FT_PluginRef.Create(dropItem as FT_Plugin);
+					
+				}
+				else if ( dropItem is FT_PluginRef )
+				{
+					// Existing plugin is dragged out of its container 
+					// If shift key is down - make a copy, otherwise - move		
+					pluginRef = dropItem as FT_PluginRef;
+					if(!event.shiftKey)
+					{
+						dropItem.parentObj.DeleteChild(dropItem);
+					}
+				}
+				newTask.AddChild(pluginRef);
+				// Make sure the index is withing array bounds
+				dropIndex = Math.min(dropIndex,ArrayCollection(this.dataProvider).length);			
+				// this adds a task to collection directly,bypassing plugn manager.. maybe not such a
+				// good idea.. revisit
+				ArrayCollection(this.dataProvider).addItemAt(newTask,dropIndex);
+				this.expandItem(newTask,true);
+				this.selectedItem = newTask;
+			}
+			
+			//------------------------------------------------------------------
+			protected function HandleDropInTree(targetItem:ZG_PersistentObject,
+											  dropItem:ZG_PersistentObject,
+											  dropIndex:int, event:DragEvent):void
+			{
+				
+				if(targetItem is FT_PluginRef)
+				{
+					
+					if(dropItem is FT_Plugin)
+					{
+						targetItem.parentObj.AddChild(FT_PluginRef.Create(dropItem as FT_Plugin),dropIndex);												
+					}
+					else
+					{
+						//moving plugin ref from one task to another OR
+						// reordering within the same task
+						if(dropItem.parentObj == targetItem.parentObj)
+						{
+							//same parent - items are reordered
+							targetItem.parentObj.SwapChildren(targetItem,dropItem);
+						}
+						else
+						{
+							// moving item from one task to another - if shift was not down - delete
+							// from source task
+							if(!event.shiftKey)
+							{
+								dropItem.parentObj.DeleteChild(dropItem);
+							}
+							targetItem.parentObj.AddChild(dropItem,dropIndex);
+							this.expandItem(targetItem.parentObj,true);
+						}					
+					}					
+				}
+				else
+				{
+					// this should never happen
+					trace("Target item is not plugin ref :" + targetItem);					
+				}
+				
+				this.expandItem(targetItem.parentObj,true);
+				this.selectedIndex = selectedIndex+1;
+			}
+			
+			//---------------------------------------------
+			public function OnExport():void
+			{
+				HandleExport();
+			}
+			//---------------------------------------------
+			public function OnNewTask():void
+			{
+				HandleNewTask();
+			}
+			//---------------------------------------------
+			public function OnDelete():void
+			{
+				HandleDelete();
+			}
+			//-------------------------------
+			public function OnImport():void
+			{
+				if(!FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_TASKS,
+														null,this.dataProvider))
+				{
+					return;
+				}
+				var fileBrowser:ZG_FileUtils = new ZG_FileUtils();
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_COMPLETE,OnTaskImportComplete);
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_CANCEL,OnTaskImportComplete);		
+				fileBrowser.BrowseReadFile("","");// all file types		
+			}
+			//------------------------------------
+			private function OnTaskImportComplete(evt:ZG_Event):void
+			{								
+				if(evt.type == ZG_Event.EVT_READ_FILE_COMPLETE)
+				{			
+					if(evt.data!=null)
+					{	
+						var newTask:FT_Task = new FT_Task(evt.data.data as String);	
+						if(newTask.LoadedOK())
+						{
+							
+							
+							newTask.dirty = true; // mark as dirty so it's saved by plugin manager						
+							// manually insert into the data provider
+							ArrayCollection(this.dataProvider).addItem(newTask);
+							this.expandItem(newTask,true);
+							this.selectedItem = newTask;							
+							FT_PluginManager.GetInstance().SaveTasks();
+						}
+						else
+						{
+							Alert.show("This is not a valid task xml file","Task Import");
+						}
+					}
+				}				
+			}
+			//-------------------------------------------
+			public function FilterFunc(event:SearchEvent):void
+			{
+				
+				// reset to containers if query is empty
+				if(event.query == "")
+				{
+					this.dataProvider = GetContainerCollection();					
+				}
+				else
+				{
+					dataProvider = null;
+					var i:int;
+					var itemsToExpand:Array = new Array();
+				
+					var searchResult:Array = new Array();
+					if(ZG_ArrayCollection.DeepSearch(GetContainerCollection(),
+						event.query,
+						(ZG_PersistentObject.SRCH_TYPE_PARTIAL_NAME  | ZG_PersistentObject.SRCH_FLAG_INCLUDE_CONTAINER),
+						searchResult))																
+					{
+						
+						/* since  this is taksks, find the task objects for individual plugin objects */
+						var finalRes:Array = new Array();
+						
+						for( i=0; i < searchResult.length;++i)
+						{
+							var cur:ZG_PersistentObject = searchResult[i];
+							if(cur.isContainer)
+							{
+								// if it's a container -i.e. task,just add 
+								finalRes.push(cur);
+							}
+							else
+							{
+								// the found object is a plugin in a task.
+								// add its parent to the list and expand the parent
+								var parent:ZG_PersistentObject = cur.parentObj;
+								if(parent!=null && finalRes.indexOf(parent) < 0)
+								{
+									finalRes.push(parent);
+									itemsToExpand.push(parent);
+								}
+							}
+						}								
+					}
+					this.dataProvider = new ArrayCollection(finalRes);//newDP;			
+					this.openItems = itemsToExpand;											
+				}			
+			}
+			//---------------------------------
+			private function GetContainerCollection():ArrayCollection
+			{
+				return FT_PluginManager.GetInstance().tasksColl;
+				
+			}		
+			//--------------------------------------------------------
+			protected function DataTipFunc(item:Object):String
+			{
+				if(item !=null)
+				{
+					if(item is FT_Task)
+					{
+						return ZG_Utils.TranslateString("Double click to rename\nDrag on Host of Host Group to execute");
+					}
+					else if (item is FT_PluginRef && item!=null && item.plugin!=null)
+					{
+						return( "Description: " + item.plugin.description + "\n"+ 
+							"---------------------------------------\n" +
+							"Command:\n" + 
+							item.plugin.commandString);
+					}
+				}				
+				return "";
+			}
+			//----------------------------------------------------
+			protected function OnClick(event:MouseEvent):void
+			{
+				
+				// detect a click outside all items and deselect everything
+				if(event.target is ListBaseContentHolder )
+				{
+					selectedItem = null;
+				}
+			}
+
+		]]>
+	</fx:Script>	
+	
+</mx:Tree>

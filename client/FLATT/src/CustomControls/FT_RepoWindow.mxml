@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Window xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" width="480" height="640" 
+		  minWidth="300" minHeight="400"
+		   creationComplete="OnInit()"
+		   closing="OnClosing(event)"
+		  xmlns:CustomControls="CustomControls.*">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import FLATTPlugin.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Logging.*;
+			import com.ZG.Utility.*;
+			import Repository.*;
+			
+			import mx.events.ResizeEvent;
+			//================================================
+			private static	var	s_Instance:FT_RepoWindow;
+			private var _wasOpened:Boolean;
+			private var _isOffscreen:Boolean;
+			//------------------------------------------------
+			public static function GetInstance(makeVisible:Boolean = true ):FT_RepoWindow
+			{
+				if(s_Instance == null)
+				{
+					s_Instance = new FT_RepoWindow();
+					s_Instance.visible = makeVisible;
+					
+					/*if(makeVisible)
+					{
+						s_Instance.move(10,10);
+					}
+					else
+					{
+						s_Instance.move(-10000,-10000);
+					}*/
+					s_Instance.open();
+					/*if(makeVisible)
+					{
+						s_Instance.open();
+					}*/
+				}
+				else
+				{
+					if(makeVisible)
+					{
+						if(!s_Instance.wasOpened)
+						{
+							s_Instance.open();
+						}
+						// explicitly make window visible - it causes all children to become visible
+						// in flex 3 could just call activate
+						
+						s_Instance.visible = true;
+						s_Instance.activate();
+					}
+				}
+				return s_Instance;
+			}
+			
+			//------------------------------------------------
+			private function OnInit():void
+			{
+				this.title = ZG_Utils.TranslateString("Actions Repository");					
+			}
+			//------------------------------------------------
+			// this prevents the window from being closed and just hides it
+			private function OnClosing(event:Event):void
+			{
+				event.preventDefault();			 	
+				s_Instance.visible = false;					   
+			}
+			//------------------------------------------------
+			public function SetPlugin(plugin:FT_Plugin):void
+			{
+				//m_PluginEditorView.SetPlugin(plugin);
+			}
+			//------------------------------------------------
+			override public function open(openWindowActive:Boolean = true):void
+			{
+				_wasOpened = true;
+				super.open(openWindowActive);
+			}
+			//------------------------------------------------
+			public function get wasOpened():Boolean
+			{
+				return _wasOpened;
+			}
+			//------------------------------------------------
+			public function set wasOpened(value:Boolean):void
+			{
+				_wasOpened = value;
+			}
+			//------------------------------------------------
+			public function OnClose(event:Event):void
+			{
+				this.close();
+			}
+			//-----------------------------------------------
+			public function OnVertResize(evt:ZG_Event):void
+			{
+				var delta:Number = ZG_StringUtils.StringToNumEx(evt.data as String);				
+				this.height +=delta;
+			}
+			//------------------------------------------
+			protected function OnCloseWindow(event:Event):void
+			{				
+				// just hide it
+				//dispatchEvent(new Event(Event.CLOSE));
+				this.close();
+			}
+			
+		]]>
+	</fx:Script>
+	<CustomControls:FT_RepoView left="0" top="0" id="m_ReposView">
+	</CustomControls:FT_RepoView>
+	
+</s:Window>

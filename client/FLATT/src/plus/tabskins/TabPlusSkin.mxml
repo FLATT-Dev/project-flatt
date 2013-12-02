@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			 xmlns:s="library://ns.adobe.com/flex/spark" 
+			 minWidth="21" minHeight="21" alpha.disabledStates="0.5">
+	
+	<!-- host component -->
+	<fx:Metadata>
+		[HostComponent("plus.TabPlus")]
+	</fx:Metadata>
+	
+	<fx:Script>
+		<![CDATA[
+			import flash.utils.*;
+			
+			import plus.TabPlus;
+			
+			private var _blinkTimer:Timer;
+			private var cornerRadius:Number = 4;
+			private var _opacityList:Array;
+			private var _opacityIndex:int = 0;
+			
+			/**
+			 *  @private
+			 *  The cornerRadius style is specified by the TabBar, not the button itself.   
+			 * 
+			 *  Rather than bind the corner radius properties of the s:Rect's in the markup 
+			 *  below to hostComponent.owner.getStyle("cornerRadius"), we reset them here, 
+			 *  each time a change in the value of the style is detected.  Note that each 
+			 *  corner radius property is explicitly initialized to the default value of 
+			 *  the style; the initial value of the private cornerRadius property.
+			 */
+			private function updateCornerRadius():void
+			{
+				var cr:Number = getStyle("cornerRadius");
+				if (cornerRadius != cr)
+				{
+					cornerRadius = cr;
+					fill.topLeftRadiusX = cornerRadius;
+					fill.topRightRadiusX = cornerRadius;
+					border.topLeftRadiusX = cornerRadius;
+					border.topRightRadiusX = cornerRadius;
+					highlight.topLeftRadiusX = cornerRadius;
+					highlight.topRightRadiusX = cornerRadius;
+				}
+			}
+			
+			/**
+			 *  @private
+			 */
+			override protected function updateDisplayList(unscaledWidth:Number, unscaleHeight:Number):void
+			{
+				updateCornerRadius();
+				hostComponent.mouseChildren= true;
+				closeBtn.visible = hostComponent.canClose;
+				
+				if (!closeBtn.visible) {
+					labelDisplay.right= 8;
+				}
+				else {
+					labelDisplay.right= 18;
+				}
+				
+				super.updateDisplayList(unscaledWidth, unscaledHeight);
+			}
+			//--------------------------------------------------------
+			public function AdjustForSchedule(tab:TabPlus,scheduleGuid:String):void
+			{
+				var curStyle:String = labelDisplay.getStyle("textAlign");
+				var tabIsSchedule:Boolean = (curStyle == "right");
+				var containerExecutingSchedule:Boolean = (scheduleGuid!=null && scheduleGuid!="");
+				
+				if( tabIsSchedule != containerExecutingSchedule)
+				{
+					if( containerExecutingSchedule && !tabIsSchedule)
+					{
+						
+						tab.width+=20;						
+						labelDisplay.setStyle("textAlign","right");	
+						m_ScheduleImage.visible = true;	
+						 // Disable for now, maybe blinking is not such a good idea after all
+						// it implies that something is happening but there may be times when nothing is : 
+						// schedule is disabled, not currentlry running. Then the blinking becomes confusing
+						// So, just leave the icon as an indication that this window belongs to a schedule
+						//StartBlinker();
+						
+					}
+					else 
+					{
+						tab.width-=20;						
+						labelDisplay.setStyle("textAlign","center");	
+						m_ScheduleImage.visible = false;
+						//StopBlinker();
+					}					
+				}
+			}
+			//-------------------------------------
+			protected function StartBlinker():void
+			{
+				if (_blinkTimer == null )
+				{
+					_blinkTimer = new Timer(300,0); 
+					_blinkTimer.addEventListener(TimerEvent.TIMER,OnBlinkTimer);
+					InitOpacictyList();
+				}
+				_blinkTimer.start();
+			}
+			//----------------------------------------
+			private function InitOpacictyList():void
+			{
+				if(_opacityList == null )
+				{
+					_opacityList = //new Array(0.75,0.50,0.25,0,0.25,0.50,0.75,1.0);
+						new Array(0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9);			
+				}
+				_opacityIndex = 0;
+			}
+			//-----------------------------------------
+			protected function OnBlinkTimer(event:TimerEvent):void
+			{
+				//if the image is visible - we're executing schedule- adjust image transparency
+				// to create throbbing effect				
+				if(m_ScheduleImage.visible)
+				{
+					if(_opacityIndex >= _opacityList.length )
+					{
+						_opacityIndex = 0;
+					}
+					
+					m_ScheduleImage.alpha = _opacityList[_opacityIndex];
+					//m_ScheduleImage.invalidateProperties();
+					
+					_opacityIndex++;
+				}
+			}
+			//-----------------------------------
+			protected function StopBlinker():void
+			{
+				if(_blinkTimer!=null && _blinkTimer.running)
+				{
+					_blinkTimer.stop();
+				}
+				// update some variables
+				_opacityIndex = 0;
+				m_ScheduleImage.alpha =1;
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" stateGroups="overStates" />
+		<s:State name="down" stateGroups="downStates" />
+		<s:State name="disabled" stateGroups="disabledStates" />
+		<s:State name="upAndSelected" stateGroups="selectedStates, selectedUpStates" />
+		<s:State name="overAndSelected" stateGroups="overStates, selectedStates" />
+		<s:State name="downAndSelected" stateGroups="downStates, selectedStates" />
+		<s:State name="disabledAndSelected" stateGroups="selectedUpStates, disabledStates, selectedStates" />
+	</s:states>
+	
+	<!-- layer 1: fill -->
+	<s:Rect id="fill" left="1" right="1" top="1" bottom="1" 
+			topLeftRadiusX="4" topRightRadiusX="4">
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:GradientEntry color="0xf0f0f0" color.over="0xc4c4c4"
+								 color.selectedStates="0xeeeeee"
+								 ratio="0" />
+				<s:GradientEntry color="0x999999" color.over="0x999999"
+								 color.selectedStates="0xeeeeee" 
+								 ratio="1" />
+			</s:LinearGradient>
+		</s:fill>
+	</s:Rect>
+	
+	<!-- layer 3: fill highlight -->
+	<s:Rect id="highlight" left="1" right="1" top="1" bottom="1" topLeftRadiusX="4" topRightRadiusX="4">
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:GradientEntry color="0xFFFFFF"
+								 ratio="0.0"
+								 alpha="0.05" />
+				<s:GradientEntry color="0xFFFFFF"
+								 ratio="0.06"
+								 alpha="0.09" />
+				<s:GradientEntry color="0xFFFFFF"
+								 ratio="0.150"
+								 alpha="0" />
+			</s:LinearGradient>
+		</s:fill>
+	</s:Rect>
+	<!-- layer 4: border - unselected only -->
+	<s:Rect id="border" left="0" right="0" top="0" bottom="0" 
+			topLeftRadiusX="4" topRightRadiusX="4">
+		<s:stroke>
+			<!--<s:SolidColorStroke color="0xeeeeee" weight="1"-->
+			<s:SolidColorStroke color="gray" weight="1"
+								alpha="1" />
+		</s:stroke>
+	</s:Rect>
+	
+	
+	<!-- layer 8: text -->
+	<!--- @copy spark.components.supportClasses.ButtonBase#labelDisplay -->
+	<s:Label id="labelDisplay"
+			 textAlign="center"
+			 verticalAlign="middle"
+			 maxDisplayedLines="1"
+			 verticalCenter="1"
+			 left="8" right="18" top="2" bottom="2">
+	</s:Label>
+	
+	<s:Image id="m_ScheduleImage" left="6"  top="3"
+			 source="@Embed('assets/sched-20.png')"  
+			 width="16" height="16"
+			 visible="false">			
+	</s:Image>	
+	<s:Button id="closeBtn"
+			  skinClass="plus.tabskins.TabCloseBtnSkin"
+			  verticalCenter="1"
+			  right="2" />
+
+</s:SparkSkin>

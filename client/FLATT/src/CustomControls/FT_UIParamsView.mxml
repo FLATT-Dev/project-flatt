@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:BorderContainer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx" 
+				   width="300" height="200" borderVisible="true" 
+				   creationComplete="OnInit()" xmlns:CustomControls="CustomControls.*" dropShadowVisible="false">
+
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			//---------------------------------------------------------
+			private function OnInit():void
+			{
+				
+				
+			}
+			//---------------------------------------------------------
+			public function Reset():void
+			{
+				m_ParamsDG.Reset();
+			}
+			//--------------------------------------------------------
+			// return true if has items in list
+			public function SetUIParams(params:Array):Boolean
+			{
+				
+				return m_ParamsDG.SetUIParams(params);
+			}
+			//--------------------------------------------------------
+			public function GetUIParams():Array
+			{
+				return m_ParamsDG.GetUIParams();
+			}
+			//--------------------------------------------------------
+			protected function OnAddButton(event:MouseEvent):void
+			{
+				m_ParamsDG.AddUIParam();
+			}
+			//------------------------------------------------
+			protected function OnRemoveButton(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				m_ParamsDG.RemoveUIParam();
+			}
+			
+
+		]]>
+	</fx:Script>
+
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<!--
+	<s:DropDownList id="m_ParamTypeDL" y="10" width="240" left="49"></s:DropDownList>
+	<s:Label y="46" text="Value:" fontWeight="bold" width="36" height="15" left="11"/>
+	<s:Label y="15" text="Type:" fontWeight="bold" width="36" height="15" left="10" />
+			 	
+	<s:TextInput y="40.5" width="240" id="m_ValueEdit" left="50" 
+				 toolTip="Enter command argument or leave blank to allow any input"
+				 enabled="{m_ParamsList.selectedIndex>=0}"
+	/>
+	<s:Label y="74" text="Label:" fontWeight="bold" width="36" height="15" left="10"/>
+	<s:TextInput y="68.5" width="240" id="m_LabelEdit" left="49" 
+				 toolTip="Describes the command argument"
+				 enabled="{m_ParamsList.selectedIndex>=0}"
+				 />
+	<s:List y="101" id="m_ParamsList" height="124" left="10" right="10"></s:List>
+	-->
+	<s:Button label="-" width="48" id="m_RemoveButton" 
+			  fontWeight="bold" 
+			  click="OnRemoveButton(event)"
+			  enabled="{m_ParamsDG.selectedIndex>=0}"
+			   bottom="5" right="10"/>
+	<s:Button label="+" width="48" id="m_AddButton" fontWeight="bold" click="OnAddButton(event)" x="10" bottom="5"/>
+	<CustomControls:FT_UIParamsDataGrid id="m_ParamsDG" left="0" right="0" bottom="38" top="0" borderVisible="false" dropShadowVisible="true"/>
+	
+	
+</s:BorderContainer>

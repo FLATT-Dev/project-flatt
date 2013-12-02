@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009"
+			   xmlns:s="library://ns.adobe.com/flex/spark"
+			   xmlns:mx="library://ns.adobe.com/flex/mx"
+			   xmlns:CustomControls="CustomControls.*"
+			   width="480" height="640" title="Host Configuration Editor"
+			    creationComplete="OnInit()"  controlBarVisible="false" 
+				 keyDown="OnKeyDown(event)" close="OnClose()">
+			    
+	<s:layout>
+		<s:VerticalLayout/>
+	</s:layout>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<CustomControls:FT_HostConfigNameValidator id="m_ConfigNameValidator" triggerEvent="">
+		</CustomControls:FT_HostConfigNameValidator>
+	</fx:Declarations>
+	
+	<CustomControls:AsyncInPlace id="m_AsyncEditor" width="100%" height="94.7%"  >
+	</CustomControls:AsyncInPlace>
+	<s:BorderContainer width="100%" height="5.3%" borderVisible="false">
+		<s:Button id="m_SaveBtn" x="398" y="2" label="Save" fontWeight="bold" 				  
+				   enabled="{IsSaveBtnEnabled()}"
+				  
+				  />
+		<s:Button id="m_CancelBtn" x="321" y="2" label="Cancel" fontWeight="bold"
+				   click="{this.dispatchEvent(new CloseEvent(CloseEvent.CLOSE));}"/>
+		<s:Label left="11" top="5.5" width="47" fontWeight="bold" text="Name:"/>
+		<s:TextInput id="m_NameEdit" left="66" top="0.25" width="239"
+					 toolTip="Edit Configuration Name"
+					  keyUp="ValidateConfigName(event)"
+					 />
+	</s:BorderContainer>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import HostConfiguration.*;
+			
+			import com.ZG.Utility.*;
+			
+			import mx.events.CloseEvent;
+			import mx.events.ValidationResultEvent;
+			import mx.managers.*;
+			
+			private var _saveFunc:Function;
+			private var _configItem:FT_HostConfig;
+			private var _savedDelay:Number = ToolTipManager.showDelay;
+			private var _initialized:Boolean = false;
+			
+			//---------------------------------------------
+			 public function get text():String
+			 {
+				 return (m_AsyncEditor == null ? "" : m_AsyncEditor.text);
+			 }
+			//---------------------------------------------
+			 public function get newConfigName():String
+			 {
+				 return m_NameEdit.text;
+			 }
+			//---------------------------------------------
+			private function IsSaveBtnEnabled():Boolean
+			{
+				return (_initialized &&										
+						//m_ConfigNameValidator.savedState && 
+						m_AsyncEditor.text!= "" &&
+						m_NameEdit.text != "");
+			}
+			//-------------------------------------------------
+			public function set saveFunc(val:Function):void
+			{
+				_saveFunc = val;
+			}
+			//---------------------------------------------
+			public function OnInit():void
+			{
+				if(m_AsyncEditor != null )
+				{
+					m_AsyncEditor.text = _configItem == null ? "" : _configItem.GetData() as String;
+				}
+				if(_saveFunc!=null)
+				{
+					m_SaveBtn.addEventListener(MouseEvent.CLICK,_saveFunc);
+					
+				}	
+				m_NameEdit.text = _configItem == null ? "" : _configItem.name;
+				m_ConfigNameValidator.itemName = m_NameEdit.text;
+				
+				// display error tips without delay
+				ToolTipManager.showDelay = 0;
+				_initialized = true;
+				
+			}
+			//-------------------------------------
+			private function OnKeyDown(evt:KeyboardEvent):void 
+			{
+				if (evt.charCode == Keyboard.ESCAPE) 
+				{
+					dispatchEvent(new CloseEvent(CloseEvent.CLOSE));
+				}
+				else
+				{
+					m_SaveBtn.enabled =IsSaveBtnEnabled();	
+				}				
+			}
+			//-------------------------------------------
+			public function get configItem():FT_HostConfig
+			{
+				return _configItem;
+			}
+			//-------------------------------------------------
+			public function set configItem(value:FT_HostConfig):void
+			{
+				_configItem = value;
+			}
+			//-------------------------------------------
+			private function ValidateConfigName(eventObj:Event):void
+			{
+				m_ConfigNameValidator.listener=eventObj.currentTarget;
+				var nameValid:ValidationResultEvent = m_ConfigNameValidator.validate(eventObj.currentTarget.text);		
+				m_SaveBtn.enabled = IsSaveBtnEnabled();
+				m_ConfigNameValidator.savedState = m_SaveBtn.enabled;
+				
+			}
+			//--------------------------------------
+			protected function OnClose():void
+			{
+				ToolTipManager.showDelay = _savedDelay;
+				m_AsyncEditor.userCanceled = true;
+			}
+			
+			
+		]]>
+	</fx:Script>
+	
+</s:TitleWindow>

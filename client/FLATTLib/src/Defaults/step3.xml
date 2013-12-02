@@ -1,0 +1,20 @@
+<FLATTPlugin category="Task Parts">
+  <GUID>14bd0f19da2723838bcfa486c73f9bfdd1d77b6a</GUID>
+  <Version>1.0</Version>
+  <Creator>FLATT Solutions</Creator>
+  <Name>Step 3</Name>
+  <Image/>
+  <Action>echo 'Executing Step 3 -error:'</Action>
+  <Description>Sample task output. Because there is an error execution stops</Description>
+  <ReturnData type="Text">
+    <DataSeparator>space</DataSeparator>
+    <Description/>
+    <NumColumns>0</NumColumns>
+  </ReturnData>
+  <Transport>ssh</Transport>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+</FLATTPlugin>

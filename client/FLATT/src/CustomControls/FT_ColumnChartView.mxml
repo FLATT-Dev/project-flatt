@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:BorderContainer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx" 
+				   width="100%" height="100%" 
+				   dropShadowVisible="true" creationComplete="OnInit()">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<!-- Define custom colors for use as column fills. -->
+		<mx:SolidColor id="sc1" color="blue" alpha=".3"/>
+		<mx:SolidColor id="sc2" color="red" alpha=".3"/>
+		
+		<!-- Define custom SolidColorStrokes for the columns. -->
+		<mx:SolidColorStroke id="s1" color="blue" weight="2"/>
+		<mx:SolidColorStroke id="s2" color="red" weight="2"/>
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import FLATTPlugin.FT_PluginResult;
+			import FLATTPlugin.FT_ColumnChartResult;
+			import com.ZG.Data.*;
+			import com.ZG.UserObjects.*;
+			import com.ZG.Utility.*;
+			
+			
+			import mx.charts.series.ColumnSeries;
+			
+			private var m_PluginResult:FT_PluginResult;
+			//---------------------------------------
+			private function OnInit():void
+			{
+				Reset();
+			}
+			//---------------------------------------
+			public function Reset():void
+			{
+				var currentSeries:Array = m_ColumnChart.series;
+				if(currentSeries!=null)
+				{
+					currentSeries.length = 0;
+				}
+				m_ColumnChart.series = currentSeries;
+				m_ColumnChart.dataProvider = null;
+				m_PluginResult = null;
+			}
+			//---------------------------------------
+			public function SetupBarChart(pluginResult:FT_PluginResult):void
+			{
+				m_PluginResult = pluginResult;
+				
+				var barObjs:Array = m_PluginResult.GetData() as Array;
+				
+				// TODO: Handle continuous display
+				
+				if(barObjs!= null && barObjs.length > 0 )
+				{
+					this.enabled = true;
+					//if(m_ColumnChart.series == null || m_ColumnChart.series.length == 0)
+					{
+						CreateColumnSeries();	
+					}
+					
+					if(m_ColumnChart.dataProvider == null || m_ColumnChart.dataProvider.length == 0 )
+					{
+						m_ColumnChart.dataProvider = barObjs;
+					}
+					else
+					{
+						// Don't create another array collection. 
+						// add to the one and only we got
+						var curData:Array = m_ColumnChart.dataProvider.toArray();
+						for(var i:int = 0; i < barObjs.length; ++i )
+						{
+							curData.push(barObjs[i]);
+						}
+					
+						m_ColumnChart.dataProvider = curData;
+						
+					}
+				}				
+			}
+			//---------------------------------------
+			public function CreateColumnSeries():void
+			{
+				// make sure there are no elemenst in series array      	
+				var colNames:Array = FT_ColumnChartResult(m_PluginResult).columnNames;
+				var colSeries:Array = new Array();
+				
+				for( var i:int = 0; i < colNames.length;++i)
+				{
+					var cur:ColumnSeries = new ColumnSeries();
+					cur.yField = cur.displayName = colNames[i];		
+					//colSeries.setStyle("fill",sc1);
+					//colSeries.setStyle("stroke",sc2);
+					
+					colSeries.push(cur);
+					
+				}				
+				m_ColumnChart.series = colSeries;
+			}
+			
+			//--------------------------------------------
+			public function GetPluginResult():FT_PluginResult
+			{
+				return m_PluginResult;
+			}
+		]]>
+	</fx:Script>
+	
+	<mx:ColumnChart id="m_ColumnChart"     
+				  showDataTips="true"
+				  paddingRight="5" 
+				  bottom="53" left="0" top="0" right="0" paddingBottom="38">       
+		<mx:horizontalAxis>
+			<mx:CategoryAxis categoryField="categoryField"/>			
+		</mx:horizontalAxis>		
+	</mx:ColumnChart>
+	
+	<mx:Legend dataProvider="{m_ColumnChart}" right="1" left="1" bottom="35" dropShadowVisible="true" paddingBottom="5" height="53"/>
+	
+	
+</s:BorderContainer>

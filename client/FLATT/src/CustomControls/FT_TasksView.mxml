@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Panel xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="100%" title="Tasks"
+		 xmlns:CustomControls="CustomControls.*">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			//-----------------------------------------------
+			
+		]]>
+	</fx:Script>
+	
+	
+	<CustomControls:FT_TasksTree left="0" right="0" bottom="0" id="m_TasksTree" dropShadowVisible="false" borderVisible="true" top="0"/>
+	
+	<mx:Button id="m_ExportBtn" visible="false" y="-27.7" right="33" width="24" height="24"
+			   click="{m_TasksTree.OnExport()}" icon="@Embed('assets/export-22.png')"
+			   toolTip="Export Action or Task"/>
+	<mx:Button id="m_ImportBtn" visible="false" y="-27.7" right="5" width="24" height="24"
+			   click="{m_TasksTree.OnImport()}" icon="@Embed('assets/import-22.png')"
+			   toolTip="Import Task"/>
+	<mx:Button id="m_DelBtn" visible="false" y="-27.7" right="61" width="24" height="24" label="D"
+			   click="{m_TasksTree.OnDelete()}" icon="@Embed('assets/remove-16.png')"
+			   toolTip="Delete"/>
+	<mx:Button id="m_NewBtn" visible="false" y="-27.7" right="90" width="24" height="24" label="N"
+			   click="{m_TasksTree.OnNewTask()}" icon="@Embed(source='assets/task-22.png')"
+			   toolTip="New Task"/>
+	<CustomControls:SearchField height="20" id="m_SearchField"
+								delay="50" cornerRadius="3" 
+								backgroundAlpha="0.9" 
+								toolTip="Search for Tasks and Actions in Tasks"
+								search="{m_TasksTree.FilterFunc(event)}" 
+ borderVisible="false" dropShadowVisible="false" left="60" top="-25" right="10">
+	</CustomControls:SearchField>
+</s:Panel>

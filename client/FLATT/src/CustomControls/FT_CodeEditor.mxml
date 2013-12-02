@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009"
+			   xmlns:s="library://ns.adobe.com/flex/spark"
+			   xmlns:mx="library://ns.adobe.com/flex/mx"
+			   xmlns:CustomControls="CustomControls.*"
+			   width="480" height="640" title="Command Editor"
+			    creationComplete="OnInit()"  controlBarVisible="false" 
+				close="OnClose()">
+	<s:layout>
+		<s:VerticalLayout/>
+	</s:layout>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<s:BorderContainer left="0" top="0" width="100%" height="30" borderVisible="false" dropShadowVisible="false">
+		
+		<s:Button id="m_ImportBtn" left="7" top="5" height="24" width="24" icon="@Embed('assets/import-22.png')"
+				   toolTip="Import command or script from file">
+			
+		</s:Button>
+	
+	</s:BorderContainer>
+	
+		
+	
+	<CustomControls:AsyncInPlace id="m_AsyncEditor" width="100%" height="100%">
+	</CustomControls:AsyncInPlace>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			private var _text:String = "";
+			private var _importFunc:Function;
+			//---------------------------------------------
+			 public function get text():String
+			 {
+				 return (m_AsyncEditor == null ? _text : m_AsyncEditor.text);
+			 }
+			
+			//---------------------------------------------
+			public function set text(val:String):void
+			{
+				
+				_text = val;
+				if(m_AsyncEditor!=null)
+				{
+					m_AsyncEditor.text = _text;
+				}
+		
+			}
+			//-------------------------------------------------
+			public function set importFunc(val:Function):void
+			{
+				_importFunc = val;
+			}
+			//---------------------------------------------
+			public function OnInit():void
+			{
+				if(m_AsyncEditor != null )
+				{
+					m_AsyncEditor.text = _text;
+				}
+				if(_importFunc!=null)
+				{
+					m_ImportBtn.addEventListener(MouseEvent.CLICK,_importFunc)
+				}
+				
+			}
+			//--------------------
+			public function OnClose():void
+			{
+				m_AsyncEditor.userCanceled = true;
+			}
+			
+		]]>
+	</fx:Script>
+	
+</s:TitleWindow>

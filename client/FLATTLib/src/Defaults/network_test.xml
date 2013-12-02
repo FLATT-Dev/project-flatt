@@ -1,0 +1,20 @@
+<FLATTPlugin category="Automation">
+  <GUID>5e354141cc7ffc775adc53532f3d0296f019c07b</GUID>
+  <Version>1.0</Version>
+  <Creator>Creator</Creator>
+  <Name>Network test</Name>
+  <Image/>
+  <Action>netstat -a</Action>
+  <Description>Shows Action output in text format</Description>
+  <ReturnData type="Text">
+    <DataSeparator>space</DataSeparator>
+    <Description/>
+    <NumColumns>0</NumColumns>
+  </ReturnData>
+  <Transport>ssh</Transport>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+</FLATTPlugin>

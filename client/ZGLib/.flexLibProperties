@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flexLibProperties includeAllClasses="true" useMultiPlatformConfig="false" version="3">
+  <includeClasses>
+    <classEntry path="com.ZG.Data.ZG_DataWriter"/>
+    <classEntry path="com.ZG.UserObjects.ZG_InsertObject"/>
+    <classEntry path="com.ascrypt3.LZW_RazorBerry"/>
+    <classEntry path="com.ascrypt3.Goauld"/>
+    <classEntry path="com.ascrypt3.GUID"/>
+    <classEntry path="com.ascrypt3.TEA"/>
+    <classEntry path="com.ascrypt3.RC4"/>
+    <classEntry path="com.ascrypt3.SHA1"/>
+    <classEntry path="com.ascrypt3.Rijndael"/>
+    <classEntry path="com.ascrypt3.Base8"/>
+    <classEntry path="com.ascrypt3.ROT13"/>
+    <classEntry path="com.ascrypt3.MD5"/>
+    <classEntry path="com.ascrypt3.Base64"/>
+    <classEntry path="com.ascrypt3.LZW"/>
+    <classEntry path="com.ZG.Utility.ZG_URLValidator"/>
+    <classEntry path="com.ZG.Utility.ZG_XMLUtils"/>
+  </includeClasses>
+  <includeResources/>
+  <namespaceManifests/>
+</flexLibProperties>

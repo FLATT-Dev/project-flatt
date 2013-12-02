@@ -1,0 +1,17 @@
+<FLATTPlugin category="Validation">
+  <GUID>a9a75c64a2631643c1b47bbeaf1279341b095642</GUID>
+  <Version>1.0</Version>
+  <Creator>FLATT Solutions</Creator>
+  <Name>Test Table</Name>
+  <Image/>
+  <Action>cat /etc/passwd</Action>
+  <Description>Shows content of the password file</Description>
+  <ReturnData type="Table">
+    <DataSeparator>Colon</DataSeparator>
+    <Description/>
+    <NumColumns>7</NumColumns>
+  </ReturnData>
+  <Transport>ssh</Transport>
+  <UIParamsList/>
+  <UIParamsList/>
+</FLATTPlugin>

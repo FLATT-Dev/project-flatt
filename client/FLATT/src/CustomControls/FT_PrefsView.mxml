@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="100%" 
+		 xmlns:CustomControls="CustomControls.*"  creationComplete="OnInit()">
+
+	<fx:Script>
+		<![CDATA[
+			import Application.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.ZG_Event;
+			
+			protected function OnOK(event:MouseEvent):void
+			{
+				Save();
+				dispatchEvent(new Event(Event.CLOSE));				
+			}
+			//---------------------------
+			protected function OnInit():void
+			{
+				m_GeneralPrefs.addEventListener(FT_Events.FT_EVT_IP_ADDR_VALIDATE,OnIpAddrValidate);
+			}
+			//--------------------------
+			protected function OnCancel(event:MouseEvent):void
+			{
+				//read the xml from prefs again to discard all changes
+				m_GeneralPrefs.ReadPrefs();
+				m_RepoView.ReadPrefs();
+				m_ProxyPrefs.ReadPrefs();
+				dispatchEvent(new Event(Event.CLOSE));
+			}
+			//--------------------------
+			public function Save():void
+			{
+				m_GeneralPrefs.Save();				
+				m_RepoView.Save();
+				m_ProxyPrefs.Save();
+				FT_Prefs.GetInstance().Commit();
+			}
+			
+			//--------------------------------
+			protected function OnIpAddrValidate(evt:ZG_Event):void
+			{
+				var enable:Boolean = evt.data as Boolean;
+				this.m_OK.enabled = enable;				
+			}
+
+		]]>
+	</fx:Script>
+
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<mx:TabNavigator left="0" right="0" bottom="38" top="0" fontWeight="bold">
+		<CustomControls:FT_GeneralForm label="General" width="100%" height="50%"  id="m_GeneralPrefs">
+		</CustomControls:FT_GeneralForm>
+		<CustomControls:FT_RepositoryPrefsView label="Repository" width="100%" height="100%"  id="m_RepoView" >
+		</CustomControls:FT_RepositoryPrefsView>	
+		<CustomControls:FT_ProxySettingsForm label="Proxy Settings" width="100%" height="100%"  id="m_ProxyPrefs">
+			
+		</CustomControls:FT_ProxySettingsForm>
+	
+	</mx:TabNavigator>
+	
+	
+	
+	<s:Button label="OK" id="m_OK" fontWeight="bold" click="OnOK(event)" height="21" width="70" bottom="6" right="13"/>
+	<s:Button label="Cancel" fontWeight="bold" click="OnCancel(event)" id="m_Cancel" width="70" right="90" bottom="6"/>
+	
+</s:Group>

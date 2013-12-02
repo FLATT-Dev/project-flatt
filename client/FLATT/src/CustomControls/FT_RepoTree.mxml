@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CustomControls:FT_PluginTree xmlns:fx="http://ns.adobe.com/mxml/2009" 
+							  xmlns:s="library://ns.adobe.com/flex/spark" 
+							  xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:CustomControls="CustomControls.*"	
+							  iconFunction="RepoTreeIconFunc"	
+							  >
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			
+			import Application.*;
+			
+			import CustomControls.SearchEvent;
+			
+			import DesktopApp.*;
+			
+			import FLATTPlugin.*;
+			
+			import Repository.*;
+			
+			import TargetHostManagement.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Data.*;
+			import com.ZG.Events.*;
+			import com.ZG.UserObjects.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.*;
+			import mx.controls.Alert;
+			import mx.controls.listClasses.*;
+			import mx.core.FlexGlobals;
+			import mx.core.UIComponent;
+			import mx.events.*;
+			import mx.events.DragEvent;
+			import mx.managers.DragManager;
+			import mx.managers.PopUpManager;
+			
+			//-------------------------------------
+			// this tree specific initialization
+			// remap export menu index
+			override protected function OnInit():void
+			{				
+				super.OnInit();
+				CM_EXPORT_INDEX = 0;	
+				showDataTips = FT_Prefs.GetInstance().GetEnableTooltips();
+				FT_RepoManager.GetInstance().addEventListener(FT_Events.FT_EVT_REPO_PUGIN_ADDED,OnPluginAdded);	
+			}
+			//---------------------------------------------
+			// sent by Repo Manager after an item was successfuly added to repository
+			protected function OnPluginAdded(evt:ZG_Event):void
+			{
+				var item:FT_Plugin  = evt.data as FT_Plugin;
+				if(item!=null)
+				{
+					this.expandItem(item.parentObj,true);
+					this.selectedItem = item;
+				}
+			}
+			// override plugin tree methods - deleting or inserting  done differently
+			override protected function InsertNewTreeObject(insertObj:ZG_InsertObject):void
+			{
+				//update provider
+				this.dataProvider = insertObj.self as ArrayCollection;
+				this.validateNow();
+				// expand newly added repository
+				if(dataProvider.length > 0 )
+				{
+					this.expandItem(dataProvider.getItemAt(this.dataProvider.length-1),true,false,true);
+				}				
+			}
+			
+			//-----------------------------------------------
+			override protected function OnDragEnter(event:DragEvent):void
+			{
+				trace("RepoTree.OnDragEnter");
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+				
+				if(obj!=null && obj is FT_Plugin && obj.type == FT_Strings.OTYPE_PLUGIN)
+				{
+					this.selectedIndex = this.calculateDropIndex(event);
+					// TODO: maybe find the repo container to which this item belongs and highlight it?
+					// as implemented, you must drop the item on the repo object only
+					if(this.selectedItem is FT_RepoContainer /*|| this.selectedItem is FT_PluginContainer */)
+					{						
+						DragManager.acceptDragDrop(event.currentTarget as UIComponent);		
+						DragManager.showFeedback(DragManager.LINK);	
+						trace("mouse over repo!");						
+					}
+				
+					else
+					{
+						this.selectedItem = null;
+						DragManager.showFeedback(DragManager.NONE);	
+						//only allow objects of type plugin to be dragged on	
+						trace("object type " + obj.type + " disallowed");
+					}
+				}
+				
+			}
+			
+			//----------------------------
+			
+			override public function HandleDeletePlugin():void
+			{
+				trace("RepoTree: HandleDeletePlugin");
+			}
+			//----------------------------
+			/*override protected function OnDragDrop(event:DragEvent):void
+			{
+				trace("RepoTree: onDragDrop");
+				var selItem:FT_PluginRepository = this.selectedItem as FT_PluginRe
+			}*/
+			//--------------------------------------------------
+			override protected function GetContainerCollection():ArrayCollection
+			{
+				return FT_RepoManager.GetInstance().reposColl;
+			}
+			//---------------------------------------
+			override protected function AddInsertPluginHandler():void
+			{
+				FT_RepoManager.GetInstance().addEventListener(FT_Events.FT_EVT_INSERT_PLUGIN,OnInsertPlugin);	
+			}
+			//-----------------------------------------------
+			override protected function InsertContextMenus():void
+			{
+				//TODO: move into class tree	
+				this.contextMenu = new ContextMenu();	
+				
+				ZG_MenuUtils.InsertContextItem(this.contextMenu,STR_EDIT_PLUGIN,OnMenuItemSelect,true);// set the label
+				//G_MenuUtils.InsertContextItem(this.contextMenu,STR_OPEN_CONTAINING_FOLDER,OnMenuItemSelect,true);// set the label
+				
+				
+				this.contextMenu.addEventListener(ContextMenuEvent.MENU_SELECT, OnContextMenuSelect);
+			}
+			//---------------------------------------------------------
+			override protected function SetupContextMenusForSelectedItem():void
+			{
+				var cmi:ContextMenuItem = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_EDIT_PLUGIN);				
+				if(cmi!=null)
+				{
+					cmi.enabled = (this.selectedItem is FT_Plugin);
+				}
+				cmi = ZG_MenuUtils.FindContextItem(this.contextMenu,STR_OPEN_CONTAINING_FOLDER);	
+				
+				if(cmi!=null)
+				{
+					cmi.enabled = (this.selectedItem !=null);
+				}
+				
+			}
+			//-----------------------------------------
+			override protected function OnMenuItemSelect( event:ContextMenuEvent):void
+			{
+				switch(this.contextMenu.getItemIndex(event.currentTarget as NativeMenuItem))
+				{			
+					
+					case 0: 
+						HandleNewPlugin(false);
+						break;
+					case 1:
+						HandleOpenContainingFolder();
+						break;
+					/*case CM_DELETE_INDEX:
+						HandleDeletePlugin();
+						break;
+					case CM_NEW_INDEX:
+					case CM_EDIT_INDEX:
+						HandleNewPlugin();
+						break;*/
+					/*case CM_EXPORT_INDEX:
+						HandleExportPlugin();
+						break;*/
+				}	
+			}
+			//----------------------------------------
+			private function HandleOpenContainingFolder():void
+			{
+				try
+				{
+					var itemFile:File = new File(selectedItem.filePath);
+					if(itemFile!=null)
+					{
+						itemFile.openWithDefaultApplication();
+					}
+				}
+				catch(e:Error)
+				{
+					
+				}
+				
+			}
+			//-----------------------------------------
+			override protected function HandleDrop(event:DragEvent):Boolean
+			{
+				var obj:Object = m_DragHelper.GetDragSourceObject(event.dragSource);
+				
+				if ( obj is FT_Plugin )
+				{
+					//TODO: post to host
+					//trace("FT_RepoTree.HandleDrop");					
+					// send event to parent to process addition
+					ZG_Utils.ZG_DispatchEvent(this,FT_Events.FT_EVT_REPO_PUGIN_DROP,obj);					
+					return true;
+				}
+				return false;
+			}
+			//-------------------------------------------------------
+			/*protected function OnPluginUploaded(evt:ZG_Event):void
+			{
+				// handle notification of plugin upload. maybe initiate a refresh of this repository?
+				// on error -display dialog with message from server
+				if(evt.xtraData[0] == ZG_Strings.STR_SUCCESS)
+				{
+					//OnRefresh();
+					// TODO: update only the repo where plugin was uploaded			
+					//Alert.show(evt.data as String,"Plugin Upload");
+				}
+				ZG_Utils.ZG_DispatchEvent(this,evt.type,evt.data,evt.xtraData);
+								
+			}*/
+			//------------------------------------------------------
+			private function RepoTreeIconFunc(item:Object):Class
+			{				
+				return FT_Application.GetInstance().GetIconForObject(item);
+			}
+			//----------------------------------------------------
+			public function FileListFromSelectedItem():Array
+			{
+				var ret:Array = new Array();
+				if (selectedItem != null)
+				{
+					
+					if(selectedItem is FT_Plugin || selectedItem is FT_RepoContainer)
+					{
+						ret.push(selectedItem.filePath);
+					}
+					else
+					{					
+						for(var i:int=0; i < ZG_PersistentObject(selectedItem).children.length;++i)
+						{
+							ret.push(ZG_PersistentObject(selectedItem).children.getItemAt(i).filePath);
+						}
+					}
+				}
+				
+				return ret;
+			}						
+			//--------------------------------------
+			// find repo from selection, and if found update its xml prefs variable.
+			// This handles cases when user adds username/password
+			// if user changed url -repo will not be found, so return null
+			//
+			public function RepoFromSelectedItem():FT_PluginRepository 
+			{		
+				var repo:FT_PluginRepository = null;
+				
+				if(selectedItem!=null)
+				{
+					repo = FT_RepoManager.GetInstance().FindRepoForItem(selectedItem as ZG_PersistentObject);
+					//RepoFromSelection(); 
+				}
+				if(repo!=null)
+				{
+					// find the repo prefs and update the repo object prefs with 
+					// latest from prefs. 
+					var repoPrefs:XML = FT_Prefs.GetInstance().GetRepoByURL(repo.url);
+					if(repoPrefs == null)
+					{
+						repo = null
+					}
+					else
+					{
+						repo.prefsXml = repoPrefs;
+					}
+				}
+				return repo;
+			}
+			//--------------------------------------
+			// prompt for host info
+			override protected function OnItemDoubleClick(e:MouseEvent):void
+			{
+				var item:FT_Plugin = this.selectedItem as FT_Plugin;
+				if(item !=null && item.isContainer == false)
+				{					
+					var xtraData:Array = new Array();
+					xtraData.push(FT_RepoWindow.GetInstance(false));
+					FT_PluginManager.GetInstance().StartExecutingPlugin(item,xtraData);					
+				}
+			}
+			//---------------------------------------------------
+			override protected function DataTipFunc(item:Object):String
+			{
+				
+				if(item !=null)
+				{
+					if(item is FT_Plugin)
+					{
+						return( "GUID: " + item.guid );
+					}
+				}				
+				return "";
+			}
+		]]>
+	</fx:Script>
+	
+</CustomControls:FT_PluginTree>

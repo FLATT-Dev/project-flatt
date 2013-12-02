@@ -1,0 +1,24 @@
+<FLATTPlugin category="Task Parts">
+  <GUID>f112ab94390582b03ccb835592accad292550de9</GUID>
+  <Version>1.0</Version>
+  <Creator>FLATT solutions</Creator>
+  <Name>Step 2</Name>
+  <Image/>
+  <Action>echo 'Executing Step  2 - warning:'</Action>
+  <Description>Sample of task output  that shows warning</Description>
+  <ReturnData type="Text">
+    <DataSeparator>space</DataSeparator>
+    <Description/>
+    <NumColumns>0</NumColumns>
+  </ReturnData>
+  <Transport>ssh</Transport>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+</FLATTPlugin>

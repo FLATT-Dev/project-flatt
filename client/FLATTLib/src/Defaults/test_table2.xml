@@ -1,0 +1,18 @@
+<FLATTPlugin category="Validation">
+  <GUID>3ea7fcadf847501b90beccd9b2a6f7725508797f</GUID>
+  <Version>1.0</Version>
+  <Creator>FLATT Solutions</Creator>
+  <Name>Test table 2</Name>
+  <Image/>
+  <Action>df -h| sed 's/Mounted on/Mounted_on/g'|awk '{printf "%s:%s:%s:%s:%s:%s\n", $1,$2,$3,$4,$5,$6 }'</Action>
+  <Description>This Action shows how to use table output format to show disk usage</Description>
+  <ReturnData type="Table">
+    <DataSeparator>Colon</DataSeparator>
+    <Description>shows disk usage</Description>
+    <NumColumns>6</NumColumns>
+  </ReturnData>
+  <Transport>ssh</Transport>
+  <UIParamsList/>
+  <UIParamsList/>
+  <UIParamsList/>
+</FLATTPlugin>

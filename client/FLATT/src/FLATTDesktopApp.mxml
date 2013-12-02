@@ -1,0 +1,503 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/mx" 
+					   xmlns:FLATTDeskopUI="FLATTDeskopUI.*" width="1000" height="540" 
+					   applicationComplete="OnAppComplete()"
+					   creationComplete="OnInit()" xmlns:CustomControls="CustomControls.*"
+					   closing="HandleExiting(event)"							   
+					   >
+		
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import Application.*;
+			import CustomControls.Quickstart.*;
+			import CustomControls.*;
+			
+			import DesktopApp.*;
+			
+			import FLATTPlugin.*;
+			
+			import HostConfiguration.*;
+			import Scheduling.*;
+			import Licensing.*;
+			
+			import Repository.*;
+			
+			import TargetHostManagement.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			
+			import mx.controls.Alert;
+			import mx.core.FlexGlobals;
+			import mx.managers.DragManager;
+			import mx.managers.PopUpManager;
+		
+			private function OnInit():void
+			{
+				// init logging and the application object
+				FT_Application.SetInstance(new FT_DesktopApplication());
+				FT_Application.GetInstance().Initialize();
+				InitUI();
+				FT_PluginManager.GetInstance().addEventListener(FT_Events.FT_EVT_EXECUTE_PLUGIN,OnPluginExecute);
+				// read plugins after trees that receive events from plugin manager are initalized
+				FT_PluginManager.GetInstance().Initialize();
+				FT_HostConfigManager.GetInstance().Initialize();
+				FT_ScheduleManager.GetInstance().Initialize();
+				//FT_RepoManager.GetInstance().Initialize();
+				FT_PluginManager.GetInstance().addEventListener(FT_Events.FT_EVT_EXEC_ERROR,OnSeriousExecutionErr);
+				
+				FT_LicenseManager.GetInstance().addEventListener(FT_Events.FT_EVT_LICENSE_EXPIRED,OnLicenseEvent);
+				FT_LicenseManager.GetInstance().addEventListener(FT_Events.FT_EVT_LICENSE_INVALID,OnLicenseEvent);
+				
+				// kick off host scanning. must be done when application object is already initialized
+				//check if it's necessary to do on startup
+				if(FT_Prefs.GetInstance().GetScanHostsOnStartup())
+				{
+					FT_TargetHostManager.GetInstance().RunHostScan();
+				}
+				//Update tooltips display based on prefs
+				DisEnableTreeTooltips();
+				// see if quickstart window needs to be displayed
+				if(!FT_Prefs.GetInstance().GetQuickstartShown())
+				{
+					OnShowQuickStart(null);
+					FT_Prefs.GetInstance().SetQuickstartShown(true);
+					
+				}
+				
+				// Preload repos - don't make visible				
+			}
+		//-----------------------------------
+			private function InitUI():void
+			{			
+				CreateMainMenubar();
+				// pre-load plugin editor instance
+				FT_PluginEditorWindow.GetInstance(false);
+				//pre-load remote repos window instance
+				FT_RepoWindow.GetInstance(false);
+			}
+			//-----------------------------------
+			private function OnAppComplete():void
+			{
+				// checks license.
+				// dispatch an event if license is  expired and or is  valid.
+				FT_LicenseManager.GetInstance().CheckLicenseExpiration();
+				
+				/*
+				if(FT_Application.GetInstance().TrialExpired())
+				{
+					Alert.show("Trial period has expired.Now go and buy it!\n","Error",4,this,OnAppExpiredClose);						
+				}*/
+				
+				
+				// TODO: resize appropriately
+				/*var rcScreen:Rectangle = Screen.mainScreen.bounds;
+				this.nativeWindow.width = rcScreen.width/2;
+				this.nativeWindow.height = rcScreen.height/2;
+				
+				this.nativeWindow.x = 10;
+				this.nativeWindow.y = 10;*/
+			
+				
+			}
+			//-----------------------------------
+			private  function CreateMainMenubar():void
+			{
+				
+				var rootMenu:NativeMenu = new NativeMenu();
+				var fileMenu:NativeMenu = new NativeMenu();	
+				var toolsMenu:NativeMenu = new NativeMenu();
+				var windowsMenu:NativeMenu = new NativeMenu();
+				var helpMenu:NativeMenu = new NativeMenu();
+				var newMenu:NativeMenu = new  NativeMenu();
+				
+				
+				
+				//var planMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("New Trade Plan");
+				var quitMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Quit"));
+				quitMenuItem.keyEquivalent = "q";
+				var prefsMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Options..."));
+				var pluginEditorMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Action Editor..."));
+				
+				var aboutMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("About FLATT...")); 
+				var logMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Log")); 
+				var viewManMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("View FLATT manual")); 
+				var reposMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Actions Repository"));  
+				var licMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("License"));
+				var quickStartMenuItem:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Quick Start")); 
+				
+				//----------------new submenus
+				var actionMI:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Action"));
+				var taskMI:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Task"));
+				var hostMI:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Host"));
+				var hostGrpMI:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Host Group"));
+				var hostCfgMI:NativeMenuItem = new NativeMenuItem(ZG_Utils.TranslateString("Host Configuration"));
+				
+				actionMI.addEventListener(Event.SELECT, OnNewSubMenuItem);
+				taskMI.addEventListener(Event.SELECT, OnNewSubMenuItem);
+				hostMI.addEventListener(Event.SELECT, OnNewSubMenuItem);
+				hostGrpMI.addEventListener(Event.SELECT, OnNewSubMenuItem);
+				hostCfgMI.addEventListener(Event.SELECT, OnNewSubMenuItem);
+				
+
+				newMenu.addItem(actionMI);
+				newMenu.addItem(taskMI);
+				newMenu.addItem(hostMI);
+				newMenu.addItem(hostGrpMI);
+				newMenu.addItem(hostCfgMI);
+				
+				
+							
+				// file menu items				
+				fileMenu.addSubmenu(newMenu,"New");
+				fileMenu.addItem(quitMenuItem);
+				// tools menu items
+				toolsMenu.addItem(prefsMenuItem);
+				toolsMenu.addItem(pluginEditorMenuItem);
+				
+				//windows menu
+				
+				windowsMenu.addItem(logMenuItem);
+				windowsMenu.addItem(reposMenuItem);
+				
+				// help menu
+				helpMenu.addItem(aboutMenuItem);
+				helpMenu.addItem(quickStartMenuItem);
+				helpMenu.addItem(viewManMenuItem);
+				helpMenu.addItem(licMenuItem);
+				
+				
+				// add handlers to menu items
+				quitMenuItem.addEventListener(Event.SELECT, QuitAppProc);	
+				prefsMenuItem.addEventListener(Event.SELECT,OnSelectPrefs);
+				pluginEditorMenuItem.addEventListener(Event.SELECT,OnPluginEditor);				
+				aboutMenuItem.addEventListener(Event.SELECT,OnAbout);
+				logMenuItem.addEventListener(Event.SELECT,OnShowLog);
+				viewManMenuItem.addEventListener(Event.SELECT,OnShowManual);
+				reposMenuItem.addEventListener(Event.SELECT,OnShowRepos);
+				licMenuItem.addEventListener(Event.SELECT,OnLicenseWindow);
+				quickStartMenuItem.addEventListener(Event.SELECT,OnShowQuickStart);
+				
+				
+				rootMenu.addSubmenu(fileMenu,ZG_Utils.TranslateString("File"));
+				rootMenu.addSubmenu(toolsMenu,ZG_Utils.TranslateString("Tools"));
+				rootMenu.addSubmenu(windowsMenu,ZG_Utils.TranslateString("Windows"));
+				
+				rootMenu.addSubmenu(helpMenu,ZG_Utils.TranslateString("Help"));
+				
+				
+				if(NativeApplication.supportsMenu)
+				{
+					this.nativeApplication.menu = rootMenu;
+				}
+				if(NativeWindow.supportsMenu)
+				{
+					this.nativeWindow.menu = rootMenu;
+				}
+			}
+			//-----------------------------------
+			private function QuitAppProc(event:Event):void
+			{
+				trace("OnApp Quit");
+				HandleExiting(event);
+				
+			}
+			//-----------------------------------
+			
+			private function HandleExiting(event:Event):void
+			{
+				
+				event.preventDefault();
+				FT_Application.GetInstance().Cleanup();
+				
+				//_appExiting = true;
+				// TODO: do something similiar
+				//ZG_BackupManager.GetInstance().RunBackup(true);//stop timer
+			}
+			//-----------------------------------------
+			private function OnSelectPrefs(event:Event):void
+			{
+				FT_PrefsWindow.GetInstance();
+				
+				//this.m_DataDisplayView.OnDisplayData(null);
+				//ZG_PrefsWindow.GetInstance(); 
+				//var filterEditWin:ZG_FilterEditWindow  = ZG_FilterEditWindow.GetInstance();						
+				//filterEditWin.activate();			
+			}
+			//-----------------------------------------
+			// ugly hack to display the 
+			private function OnAbout(evt:Event):void
+			{
+						
+				var txt:String = FT_Strings.STR_APP_NAME + " v " + FT_Application.GetInstance().GetVersionString()+
+								"<br>Copyright © 2010 - 2013, <b><i>FLATT Solutions</i></b><br>All Rights Reserved"+
+					"<br>"+"<a href=" + "'" + FT_Strings.STR_COMPANY_URL + "'" + ">" + 
+					"<b>"+FT_Strings.STR_COMPANY_URL+"</b>"+"</a>";
+					
+				
+				
+				var alert:Alert = Alert.show(txt,ZG_Utils.TranslateString("About FLATT"),4,this);
+				alert.mx_internal::alertForm.mx_internal::textField.htmlText = txt;
+			
+			}
+			//-----------------------------------------
+			private function OnShowLog(event:Event):void
+			{
+				ZG_LogWindow.GetInstance();
+			}
+			//-------------------------
+			private function OnShowQuickStart(event:Event):void
+			{
+				FT_QuickStartWindow.GetInstance();
+			}
+			
+			//-----------------------------------------
+			private function OnShowManual(event:Event):void
+			{
+				navigateToURL(new URLRequest(FT_Strings.STR_MANUAL_URL));
+			}
+			//-----------------------------------------
+			private function OnPluginEditor(event:Event):void
+			{				
+				// user is attempting to create a new plugin.
+				if(!(this.m_PluginView.m_PluginTree.selectedItem is FT_Plugin))
+				{					
+					if(!FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_PLUGINS))
+					{
+						return;
+					}
+				}
+				
+				var wnd:FT_PluginEditorWindow = FT_PluginEditorWindow.GetInstance();
+				// select item in tree
+				// typecast will fail and object will be null if its type is not
+				// FT_Plugin. This is good as it will filter selected objects whose
+				// type is not FT_Plugin
+				wnd.SetPlugin(this.m_PluginView.m_PluginTree.selectedItem as FT_Plugin);
+			}
+			//-----------------------------------
+			private function OnPluginExecute(evt:ZG_Event):void
+			{
+				//A window may be passed in, over which the popup is displayed.
+				// If execution is done from Editor by clicking Test button, this
+				// makes sure that the Login dialog is in front
+				var parentWin:DisplayObject;
+				if(evt.xtraData!=null && evt.xtraData.length > 0)
+				{
+					parentWin = evt.xtraData[0];
+					// make sure to delete all elements from array so the object is
+					// garbage collected
+					evt.xtraData = [];
+				}
+				else 
+				{
+					parentWin = FlexGlobals.topLevelApplication as DisplayObject;
+				}
+				//var loginWind:FT_HostLoginWindow = PopUpManager.createPopUp(parentWin, FT_HostLoginWindow, true) as FT_HostLoginWindow;
+				var loginWind:FT_HostEditAndLoginWindow = PopUpManager.createPopUp(parentWin, FT_HostEditAndLoginWindow, true) as FT_HostEditAndLoginWindow;
+				loginWind.loginMode = true;
+				loginWind.addEventListener(FT_Events.FT_EVT_UPDATE_TARGET_HOST,OnUpdateTargetHost);
+				loginWind.SetPlugin(evt.data as FT_Plugin );
+				PopUpManager.centerPopUp(loginWind);
+				PopUpManager.bringToFront(loginWind);
+			}
+			//-----------------------------------------
+			private function OnAppExpiredClose(event:Event):void
+			{
+				trace("trial expired");
+				close();
+			}
+			
+			//-------------------------------------------
+			private function OnShowRepos(event:Event):void
+			{
+				FT_RepoWindow.GetInstance();
+			}
+			
+			//-------------------------------------------------
+			private function OnSeriousExecutionErr(evt:ZG_Event):void
+			{				
+				Alert.show(evt.data  as String,"Error");
+			}
+			//-------------------------------------------------
+			
+			private function OnLicenseWindow(evt:Event):void
+			{				
+				FT_LicenseWindow.GetInstance();
+			}
+			//-----------------------------
+			private function OnLicenseEvent(evt:Event):void
+			{
+				///TODO
+				var cause:String = "";
+				
+				switch(evt.type)
+				{
+					case FT_Events.FT_EVT_LICENSE_EXPIRED:
+						cause = " has expired.";
+						break;
+					default:
+						cause = " is invalid ";
+						break;						
+				}
+				Alert.show("Your license"+ cause+ ". Reverting to demo license. Please contact sales@flattsolutions.com to renew","Error",4,this,null);
+				
+			}
+			//---------------------------------
+			// called when a host is updated when user brings up  a login window
+			// and changes something in login creds for the host or adds a new host
+			// call hosts table  to update the item or include a new one
+			protected  function OnUpdateTargetHost(evt:ZG_Event):void
+			{
+				var item:Object = evt.data;
+				if(item!=null)
+				{
+					m_HostsView.HanldeItemUpdate(item);
+				}
+				evt.currentTarget.removeEventListener(FT_Events.FT_EVT_UPDATE_TARGET_HOST,OnUpdateTargetHost);
+			}
+			//----------------------------------------------
+			// returns true if any of the tables has an item selected
+			public function AnyTableSelected():Boolean
+			{
+				return (IsPluginSelected() 		||
+						IsHostOrGroupSelected() ||
+						IsTaskSelected()		||
+						IsPluginInTaskSelected() ||
+						IsHostConfigSelected());
+				
+				
+				/* ((m_HostConfigsView.m_HostConfigTree.selectedItem!=null)||
+					   (m_HostsView.m_HostsTree.selectedItem!=null) ||
+					   (m_PluginView.m_PluginTree.selectedItem!=null && (m_PluginView.m_PluginTree.selectedItem.isContainer == false)) ||
+					   (this.m_TasksView.m_TasksTree.selectedItem!=null))*/
+			}
+			//----------------------------------------------
+			// return true if selected item in the plugin table is a plugin and false if it's a container
+			public function IsPluginSelected():Boolean
+			{
+				return  (m_PluginView.m_PluginTree.selectedItem!=null && (m_PluginView.m_PluginTree.selectedItem.isContainer == false));
+			}
+			//-------------------------------------------------------
+			public function IsHostOrGroupSelected():Boolean
+			{
+				return (m_HostsView.m_HostsTree.selectedItem!=null);
+			}
+			//-------------------------------------------------------
+			public function IsTaskSelected():Boolean
+			{
+				return (m_TasksView.m_TasksTree.selectedItem!=null && m_TasksView.m_TasksTree.selectedItem.isContainer);
+			}
+			//-------------------------------------------------------
+			public function IsPluginInTaskSelected():Boolean
+			{
+				return (m_TasksView.m_TasksTree.selectedItem!=null && ( m_TasksView.m_TasksTree.selectedItem.isContainer == false));
+			}
+			//----------------------------------------------
+			public function IsHostConfigSelected():Boolean
+			{
+				return (m_HostConfigsView.m_HostConfigTree.selectedItem!=null);
+			}
+			//------------------------------------------
+			// code duplication!! similar code exists in FT_MainCtrlBar
+			// TODO: create a static menuhelper class to handle this 
+			private function OnNewSubMenuItem(event:Event):void
+			{
+				switch(event.currentTarget.label)
+				{
+					
+					case "Host":
+						m_HostsView.OnAddHost();
+						break;
+					case "Host Group":
+						m_HostsView.m_HostsTree.OnAddGroup();						
+						break;
+					case "Action":
+						m_PluginView.m_PluginTree.HandleNewPlugin(true);
+						break;
+					case "Task":
+						m_TasksView.m_TasksTree.OnNewTask();							
+						break;
+					case "Host Configuration":
+						m_HostConfigsView.HandleNew();
+						break;
+					
+				}
+			}
+			
+			//------------------------------------
+			public function DisEnableTreeTooltips():void
+			{
+				var val:Boolean = FT_Prefs.GetInstance().GetEnableTooltips();
+				m_PluginView.m_PluginTree.showDataTips = val;
+				m_HostsView.m_HostsTree.showDataTips = val;
+				m_TasksView.m_TasksTree.showDataTips = val;
+				m_HostConfigsView.m_HostConfigTree.showDataTips = val;
+				// make sure the object and its children are initialized
+				var win:FT_RepoWindow = FT_RepoWindow.GetInstance(false);
+				if(win!=null && win.m_ReposView!=null && win.m_ReposView.m_RepoTree!=null)
+				{
+					win.m_ReposView.m_RepoTree.showDataTips = val;
+				}
+			}
+			
+
+		]]>
+	</fx:Script>
+	
+	
+	
+	<mx:HDividedBox y="35" width="100%" height="100%"   >
+		
+		<mx:VDividedBox  minWidth="200" width="30%" height="100%" borderVisible="true">
+		
+			<s:VGroup  width="100%" height="50%">	
+				
+				<CustomControls:FT_PluginView id="m_PluginView" >			
+				</CustomControls:FT_PluginView>
+				
+			</s:VGroup>
+			
+			<s:VGroup width="100%" height="50%">								
+				<CustomControls:FT_TasksView id="m_TasksView" >
+				</CustomControls:FT_TasksView>				
+			
+			</s:VGroup>
+			
+		</mx:VDividedBox>
+		
+		<mx:VDividedBox  minWidth="265" width="30%" height="100%" borderVisible="true">
+			
+			<s:VGroup  width="100%" height="70%">	
+				
+				<CustomControls:FT_HostsView id="m_HostsView">		
+				</CustomControls:FT_HostsView>		
+				
+			</s:VGroup>
+			
+			<s:VGroup width="100%" height="30%"  minHeight="30"  >					  													
+				<CustomControls:FT_HostConfigsView id="m_HostConfigsView">		
+				</CustomControls:FT_HostConfigsView>		
+			</s:VGroup>
+			
+		</mx:VDividedBox>
+		
+		
+		
+		<CustomControls:FT_DataDisplayView  y="80"  width="100%" height="100%" id="m_DataDisplayView">
+		</CustomControls:FT_DataDisplayView>
+			
+		
+	</mx:HDividedBox>
+	<CustomControls:FT_MainCtrlBar id="m_MainCtrlBar" left="0" right="0" top="0" visible="true">
+	</CustomControls:FT_MainCtrlBar>
+	
+</s:WindowedApplication>

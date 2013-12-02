@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="270" creationComplete="OnInit()">
+	
+	<fx:Script>
+		<![CDATA[
+			import Application.*;
+			
+			import Licensing.*;
+			
+			import com.ZG.Utility.*;
+			
+			import mx.formatters.DateFormatter;
+			
+			import spark.events.TextOperationEvent;
+			private var _dateFormatter:DateFormatter = new DateFormatter();				
+
+			//---------------------------------------------------------------
+			
+			protected function OnInit():void
+			{
+				_dateFormatter.formatString = ZG_Strings.STR_NO_MINS_DATE_FORMAT;				
+				SetupLicense(true);// use saved expiration date
+			}			
+			//---------------------------------------------------			
+			protected function OnCancel(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				m_LicKey.text = "";
+				// reset the license state
+				FT_LicenseManager.GetInstance().InitLicense();
+				SetupLicense(true); // use saved expiration date
+				dispatchEvent(new Event(Event.CLOSE));
+				
+			}
+			//----------------------------------------
+			protected function OnOK(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				
+				FT_LicenseManager.GetInstance().SaveLicense(m_LicKey.text);
+				m_LicKey.text = "";
+				SetupLicense(true); // use saved expiration date
+				dispatchEvent(new Event(Event.CLOSE));
+				
+				
+			}
+			//------------------------------------------------
+			protected function OnLicKeyChange(event:TextOperationEvent):void
+			{
+				if(!FT_LicenseManager.GetInstance().ValidateLicense(m_LicKey.text))
+				{
+					// if key is invalid  - set everything to empty
+					//fi_LicType.text = "Invalid!";
+					fi_NumHosts.text = fi_NumPlugins.text = fi_Subscription.text = fi_NumTasks.text = fi_NumRemotes.text = "";					
+					m_OKButton.enabled = false;
+				}
+				else
+				{
+					m_OKButton.enabled = true;
+					SetupLicense(false); // use current time for expiration date, user is in  the middle of the process
+				}							
+			}
+			//-----------------------------------------------------
+			protected function SetupLicense(useSavedExpDate:Boolean ):void
+			{
+							
+				var licMan:FT_LicenseManager = FT_LicenseManager.GetInstance();
+				//fi_LicType.text = licMan.licenseTypeString;
+				fi_NumHosts.text = licMan.LicenseCheck_Str(FT_LicenseManager.LIC_CHECK_NUM_HOSTS);
+				fi_NumPlugins.text =  licMan.LicenseCheck_Str(FT_LicenseManager.LIC_CHECK_NUM_PLUGINS);
+				fi_NumTasks.text =  licMan.LicenseCheck_Str(FT_LicenseManager.LIC_CHECK_NUM_TASKS);
+				fi_NumRemotes.text =  licMan.LicenseCheck_Str(FT_LicenseManager.LIC_CHECK_NUM_REMOTE_PLUGINS);
+											
+				SetSubscriptionString(useSavedExpDate);				
+			}
+			//----------------------------------------------------------
+			protected function SetSubscriptionString(useSavedExpDate:Boolean):void
+			{
+				// undefined duration can only happen on a demo license.
+				var duration:int = FT_LicenseManager.GetInstance().licenseDuration;
+				var yearOrMonth:String;
+				if(duration == FT_License.LIC_DURATION_UNDEFINED)
+				{
+					if(FT_LicenseManager.GetInstance().licenseType !=FT_License.LIC_TYPE_DEMO)
+					{
+						trace("Duration undefined on License type  " + FT_LicenseManager.GetInstance().licenseType);
+					}
+					fi_Subscription.text = "Demo";
+				}
+				else
+				{
+					if(FT_LicenseManager.GetInstance().licenseType ==FT_License.LIC_TYPE_DEMO)
+					{
+						fi_Subscription.text = "Demo";
+					}
+					else
+					{
+						var date:Date = new Date();
+						/* the reason this is done:
+							This routine can be called when user is in process of trying a new license.
+							In this case they havent pressed OK so the expiration date is not saved and we need to
+							use the current date to indicate that the license expires n years from this moment.
+							When this routine is called as part of ok  or cancel - need to use saved exp date
+							For example
+							User enters a key for a 1 year license on April 20 2012
+							Then 2 days later they come back and try entering another license. Expiration
+							date should be from April 22, not 20
+						*/
+						if(useSavedExpDate)
+						{
+							// display date saved in prefs
+							date.time = FT_Prefs.GetInstance().GetLicenseExpirationDate();
+						}
+						else
+						{
+							// otherwise show when it will expire based on duration
+							//date.fullYear+=duration;
+							// duration is a month now!
+							date.month += duration;
+						}		
+						// duration is in months, convert to years
+						if(duration < 12)
+						{
+							yearOrMonth = " month" + (duration > 1 ? "s": "");
+							
+						}
+						else
+						{
+							duration/=12;
+							yearOrMonth = " year" + (duration > 1 ? "s": "");
+						}
+						
+						fi_Subscription.text = duration.toString()+ yearOrMonth + 
+												", expires " + 
+												_dateFormatter.format(date);
+					}
+				}									
+			}
+			
+			
+			
+		]]>
+	</fx:Script>
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	<s:TextInput id="m_LicKey" left="25" right="25" top="48" change="OnLicKeyChange(event)" fontWeight="bold"/>
+	<s:Label left="25" top="28" fontWeight="bold" text="Enter License Key:"/>
+	<s:Label left="25" top="87" fontWeight="bold" text=" Current License Info:"/>
+	<s:BorderContainer left="25" right="25" top="103" height="101" dropShadowVisible="false">
+		<s:Form left="5" right="5" top="5" height="80" textAlign="left">
+			
+			<!--
+			<mx:FormItem direction="horizontal" label="Type" id="fi_Type" fontWeight="normal" visible="false"> 
+						
+				<s:Label id="fi_LicType" fontWeight="bold"  />
+				<s:Image id="m_Image">	
+					
+				</s:Image>
+							 						  
+			</mx:FormItem>
+			-->
+			<mx:FormItem label="Subscription:"  fontWeight="normal"> 
+				
+				<s:Label id="fi_Subscription" fontWeight="bold" />
+				
+			</mx:FormItem>		
+			
+			<mx:FormItem label="Hosts:"  fontWeight="normal"> 
+				
+				<s:Label id="fi_NumHosts" fontWeight="bold"/> 
+				
+			</mx:FormItem>
+			
+			<mx:FormItem label="Actions:"  fontWeight="normal" visible="false"> 
+				
+				<s:Label id="fi_NumPlugins" fontWeight="bold" />		
+							 				  
+			</mx:FormItem>
+			
+			
+			
+			<mx:FormItem label="Tasks:"  fontWeight="normal" visible="false"> 
+				
+				<s:Label id="fi_NumTasks" fontWeight="bold" />
+							  						  
+			</mx:FormItem>
+			
+			<mx:FormItem label="Remote Actions:"  fontWeight="normal" visible="false"> 
+				
+				<s:Label id="fi_NumRemotes" fontWeight="bold" />
+							 						  
+			</mx:FormItem>
+			
+		</s:Form>
+	</s:BorderContainer>
+	<s:Form y="220" right="21" width="178" defaultButton="{m_OKButton}">
+		
+		<mx:FormItem  direction="horizontal"> 			
+			<s:Button fontWeight="bold" label="Cancel" click="OnCancel(event)"/>	
+			<s:Button id="m_OKButton"  fontWeight="bold" label="OK" click="OnOK(event)" 
+					  enabled="{m_LicKey.text!=''}"/>
+		</mx:FormItem>		
+		
+	</s:Form>
+</s:Group>

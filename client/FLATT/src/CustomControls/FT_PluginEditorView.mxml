@@ -1,0 +1,607 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"   
+		 paddingLeft="0" paddingRight="0" paddingBottom="0"		  
+		 paddingTop="0" xmlns:CustomControls="CustomControls.*"
+		 creationComplete="OnInit()">
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+				
+		<![CDATA[
+			import DesktopApp.*;
+			
+			import FLATTPlugin.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			
+			import flash.filesystem.*;
+			import flash.net.FileReference;
+			
+			import mx.collections.*;
+			import mx.containers.FormItem;
+			import mx.controls.Text;
+			import mx.events.*;
+			import mx.managers.PopUpManager;
+			import Licensing.*;
+			import Repository.*;
+						
+			private var m_CurPlugin:FT_Plugin;    
+			private var m_Initialized:Boolean;
+			private var STR_SELECT_CAT:String = "<Select Category>";
+			private var m_CmdEditor:FT_CodeEditor;
+			
+			//---------------------------------------------
+			private function OnInit():void
+			{
+				m_UIParamsView.m_ParamsDG.addEventListener(FT_Events.FT_EVT_UI_PARAM_ADDED,OnUIParamAdded);
+				m_UIParamsView.m_ParamsDG.addEventListener(FT_Events.FT_EVT_UI_PARAM_REMOVED,OnUIParamRemoved);
+			}
+			//---------------------------------------------
+			private function OnReset():void 
+			{
+								
+				fi_Version.text = "1.0";
+				fi_Creator.text = "";
+				fi_UiName.text = "";
+				fi_UnixCmd.text = "";
+				fi_Description.text = "";
+				fi_PluginCategoryCB.selectedIndex = 0;
+				fi_ReturnTypeCB.selectedIndex = 0;
+				//fi_TransportCB.selectedIndex = 0;
+				fi_Delimiters_CB.selectedIndex = 0;
+				InitCategoryCB();
+
+				
+				m_ParamsCB.selected = false;
+				m_UIParamsView.Reset();
+								
+				// disable update button after update
+				DisEnableButtons(false);
+				
+			}
+			//-------------------------------------
+			public function SetPlugin(inPlugin:FT_Plugin):void
+			{
+				m_CurPlugin = inPlugin;
+				// set a list of UI parameters if present
+				//Close command editor if it is open
+				CloseCmdEditor();
+				
+				if(m_CurPlugin!=null && m_Initialized )
+				{					
+					// make sure we have an updated category list.
+					InitCategoryCB();
+					UIFromPluginData();
+					
+				}
+				else
+				{
+					OnReset();
+				}
+				m_TestButton.enabled = true;
+			}
+			//-------------------------------------
+			public function UIFromPluginData( addEvtListener:Boolean = false ):void
+			{
+				if(m_CurPlugin!=null && m_Initialized)
+				{
+					
+					fi_Version.text = m_CurPlugin.version;
+					fi_Creator.text = m_CurPlugin.creator;
+					fi_UiName.text = m_CurPlugin.name;
+					fi_UnixCmd.text = m_CurPlugin.commandString
+					fi_Description.text = m_CurPlugin.description;
+					fi_PluginCategoryCB.selectedIndex = FindIndex(fi_PluginCategoryCB.dataProvider.source,m_CurPlugin.category);
+					// may not exist in default list so check
+					if(fi_PluginCategoryCB.selectedIndex < 0 )
+					{
+						fi_PluginCategoryCB.dataProvider.addItem(m_CurPlugin.category);
+						fi_PluginCategoryCB.selectedIndex = fi_PluginCategoryCB.dataProvider.indexOf(m_CurPlugin.category)  ;
+					}
+					
+					SetupReturnDataUI();
+					//fi_TransportCB.selectedIndex = FindIndex(fi_TransportCB.dataProvider.source,m_CurPlugin.transport);
+					// set up params list
+					m_ParamsCB.selected = m_UIParamsView.SetUIParams(m_CurPlugin.uiParams);
+				}
+				// disable update button after update
+							
+				m_SaveButton.enabled = false;
+			}
+			//-------------------------------------
+			// Find item index in array.. seems like something that needs to be generic
+			// do a case insensitive seach
+			private function FindIndex(arr:Array,pattern:String):int
+			{				
+				for(var i:int = 0; i < arr.length;++i)
+				{
+					if(arr[i].toLowerCase() == pattern.toLowerCase() )
+					{
+						return i;
+					}
+				}
+				return -1;
+			}
+			//-------------------------------------			
+			private function OnComboBoxOpen(event:DropdownEvent):void
+			{
+				// dont use stupid rollover
+				ComboBox(event.target).dropdown.setStyle("useRollOver",false);   
+			}
+			
+			
+			//---------------------------------------------------
+			private function OnUIElementChange(evt:Event):void
+			{
+				trace("OnUIElementChange !");
+				DisEnableButtons(true);				
+			}
+			
+			//---------------------------------------
+			private function DisEnableButtons(enable:Boolean):void
+			{
+				m_SaveButton.enabled = enable;
+				// check again to make sure it's not enabled when category is not selected
+				if(m_SaveButton.enabled)
+				{
+					m_SaveButton.enabled = CanEnableSaveButton();
+				}
+				// make sure that test button is only enabled when there is a unix command
+				m_TestButton.enabled = (fi_UnixCmd !=null && fi_UnixCmd.text!="");			
+			}
+		
+			//----------------------------------------------------
+			// we can test without category set up, but save is only allowed when user selects category
+			private function CanEnableSaveButton():Boolean
+			{
+				return ((fi_UnixCmd !=null && fi_UnixCmd.text!="") && 
+						(fi_PluginCategoryCB.text!="" )&& 
+						(fi_PluginCategoryCB.text!=STR_SELECT_CAT ));
+			}
+			//-----------------------------------------
+			protected function OnFormInit(event:FlexEvent):void
+			{
+				
+				InitCategoryCB();
+					/*new ArrayCollection(new Array(STR_SELECT_CAT,
+													 "Validation",
+													  "Performance",
+													  "Security",
+													  "Automation"
+													   ));*/
+																				  
+			
+			
+				fi_ReturnTypeCB.dataProvider = new ArrayCollection(new Array(FT_Strings.RTYPE_TEXT,
+																			FT_Strings.RTYPE_TABLE,
+																			FT_Strings.RTYPE_LINECHART,
+																			FT_Strings.RTYPE_COLUMNCHART/*,
+																			FT_Strings.RTYPE_LIST*/));
+			
+			
+			
+				fi_Delimiters_CB.dataProvider = new ArrayCollection(new Array(FT_ReturnDataInfo.SEPARATOR_TYPE_SPACE,
+																			FT_ReturnDataInfo.SEPARATOR_TYPE_COMMA,
+																			FT_ReturnDataInfo.SEPARATOR_TYPE_SEMICOLON,
+																			FT_ReturnDataInfo.SEPARATOR_TYPE_TAB,
+																			FT_ReturnDataInfo.SEPARATOR_TYPE_COLON));	
+			
+				// For now only ssh
+			
+				//fi_TransportCB.dataProvider= new ArrayCollection(new Array("ssh"));
+				
+				
+				// if at init time plugin is already set, display it, otherwirse display defaults
+				m_Initialized = true;
+				if(m_CurPlugin == null )
+				{
+					OnReset();
+				}
+				else
+				{
+					UIFromPluginData();
+				
+				}
+						
+			}
+			//-----------------------------------------
+			private function OnSave():void
+			{				
+				var oldCat:String = (m_CurPlugin == null ?  "" : m_CurPlugin.category);
+				
+				PluginDataFromUI();
+				
+				// make sure that the plugin is deleted from  parent container if its
+				// category changes
+				if(oldCat !=m_CurPlugin.category && m_CurPlugin.parentObj!=null)
+				{
+					m_CurPlugin.parentObj.DeleteChild(m_CurPlugin);
+					trace("Plugin category changed from " + oldCat + " to " + m_CurPlugin.category);
+					
+				}
+				if(m_CurPlugin.isRemote)
+				{
+					FT_RepoManager.GetInstance().SaveLocallyModifiedPlugin(m_CurPlugin);
+					
+				}
+				else
+				{
+					FT_PluginManager.GetInstance().Save(m_CurPlugin);
+				}
+				m_SaveButton.enabled = false;
+				dispatchEvent(new Event(Event.CLOSE));
+				//new FileReference().save(m_CurPlugin.ToXMLString());							
+			}
+			//-----------------------------------------
+			private function PluginDataFromUI():void
+			{
+				if(m_CurPlugin == null )
+				{
+					m_CurPlugin = new FT_Plugin();
+				}
+				
+				m_CurPlugin.category = fi_PluginCategoryCB.text;//fi_PluginCategoryCB.selectedItem as String;
+				m_CurPlugin.commandString = fi_UnixCmd.text;
+				m_CurPlugin.creator = fi_Creator.text;
+				m_CurPlugin.description = fi_Description.text;
+				m_CurPlugin.version = fi_Version.text;
+				m_CurPlugin.name = fi_UiName.text;
+				//TODO plugin.image = fi_Image.
+				
+				// TODO i think it would make more sence to
+				// store plugins /plugins/category/plugin.xml
+				// just a thought -anton
+				
+				m_CurPlugin.returnDataInfo.type = fi_ReturnTypeCB.selectedItem as String;
+				if(m_CurPlugin.returnDataInfo.type == FT_Strings.RTYPE_TABLE)
+				{
+					m_CurPlugin.returnDataInfo.dataSeparatorType = fi_Delimiters_CB.selectedItem as String;
+					m_CurPlugin.returnDataInfo.numColumns = new Number(fi_NumColumnsTI.text);
+				}
+				
+				//m_CurPlugin.transport = fi_TransportCB.selectedItem as String;
+				m_CurPlugin.uiParams = m_UIParamsView.GetUIParams();
+				
+			}
+			//-----------------------------------------
+			private function OnLoad():void
+			{
+				// check if license allows this
+				if(!FT_LicenseChecker.AdjustForLicense(FT_LicenseManager.LIC_CHECK_NUM_PLUGINS))
+				{
+					return;
+				}
+				var fileBrowser:ZG_FileUtils = new ZG_FileUtils();
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_COMPLETE,OnReadFileComplete);
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_CANCEL,OnReadFileComplete);		
+				fileBrowser.BrowseReadFile("","");// all file types		
+			}
+			//-----------------------------------------
+			private function OnTest():void
+			{
+				PluginDataFromUI();
+				// add the pointer to this dialog to the event, so the login dialog
+				// is visible over it. Otherwise it is put in front of main app window but
+				// because it'not in the foreground ( covered by this dlg ) ,the login
+				// window is not visible
+				var xtraData:Array = new Array();
+				xtraData.push(FT_PluginEditorWindow.GetInstance(false));
+				FT_PluginManager.GetInstance().StartExecutingPlugin(m_CurPlugin,xtraData);
+				
+				
+			}
+			//-----------------------------------------
+			private function SetupReturnDataUI():void
+			{
+				var returnDataInfo:FT_ReturnDataInfo = m_CurPlugin.returnDataInfo;
+				fi_ReturnTypeCB.selectedIndex = FindIndex(fi_ReturnTypeCB.dataProvider.source,returnDataInfo.type);
+
+				
+				fi_Delimiter.enabled = fi_NumCols.enabled = (returnDataInfo.type == FT_Strings.RTYPE_TABLE);
+				if(fi_Delimiter.enabled)
+				{
+					fi_Delimiters_CB.selectedIndex = FindIndex(fi_Delimiters_CB.dataProvider.source,returnDataInfo.dataSeparatorType);
+					fi_NumColumnsTI.text = returnDataInfo.numColumns.toString();
+				}
+				
+			}
+			//-----------------------------------------
+			protected function OnToggleParametersView(event:MouseEvent):void
+			{
+				var val:Number = (m_ParamsCB.selected ? 200 : -200);
+				if(m_ParamsCB.selected)
+				{
+					
+					m_UIParamsView.height = val;
+					m_UIParamsView.visible = true;
+				}
+				else
+				{
+					m_UIParamsView.height = 0;
+					m_UIParamsView.visible = false;
+				}
+				
+				ZG_Utils.ZG_DispatchEvent(this,FT_Events.FT_EVT_VERT_RESIZE,val.toString());
+			}
+			//-----------------------------------------
+			// Add ui param ID to the command line at wherever the cursor is
+			private function OnUIParamAdded(event:ZG_Event):void
+			{
+				var uiParam:FT_UIParam = event.data as FT_UIParam;
+				if( uiParam !=null )
+				{
+					var caretStart:int = fi_UnixCmd.selectionBeginIndex;
+					var caretEnd:int = fi_UnixCmd.selectionEndIndex;
+					fi_UnixCmd.text = fi_UnixCmd.text.substring(0,caretStart)+"@"+uiParam.id +
+										fi_UnixCmd.text.substr(caretEnd);
+						
+					fi_UnixCmd.validateNow();
+					m_SaveButton.enabled = CanEnableSaveButton();
+				}
+			}
+			//-----------------------------------------
+			private function OnUIParamRemoved(event:ZG_Event):void
+			{
+				var uiParam:FT_UIParam = event.data as FT_UIParam;
+				if( uiParam !=null )
+				{
+					//TODO: remove the id of the param from the command string
+					//var offset = fi_UnixCmd.text.indexOf("@"+uiParam.id);
+					
+					fi_UnixCmd.text = ZG_StringUtils.RemoveSubstring(fi_UnixCmd.text,"@"+uiParam.id);
+					fi_UnixCmd.validateNow();
+					m_SaveButton.enabled = CanEnableSaveButton();
+					
+				}			
+			}
+			//-------------------------------------------------------
+			private function OnReadFileComplete(evt:ZG_Event):void
+			{								
+				if(evt.type == ZG_Event.EVT_READ_FILE_COMPLETE)
+				{			
+					if(evt.data!=null)
+					{	
+						var newPlug:FT_Plugin = new FT_Plugin(evt.data.data as String);
+						SetPlugin(newPlug);
+						DisEnableButtons(true);
+					}
+				}				
+			}
+			//--------------------------------------------------
+			// Insert "<Select category> item at the beginning
+			private function InitCategoryCB():void
+			{
+				fi_PluginCategoryCB.dataProvider = null;
+				var coll:ArrayCollection = new ArrayCollection(FT_PluginManager.GetInstance().GetCategoryList());
+				// plugin category does not exist in plugin manager list - could be a category from remote repo
+				if(m_CurPlugin!=null)
+				{
+					if(coll.getItemIndex(m_CurPlugin.category)< 0 )
+					{
+						coll.addItem(m_CurPlugin.category);
+					}
+				}
+				
+				coll.addItemAt(STR_SELECT_CAT,0);
+				fi_PluginCategoryCB.dataProvider = coll;				
+			}
+			//----------------------------------------------------	
+			protected function OnShowPopupEditor(event:MouseEvent):void
+			{
+				CloseCmdEditor();
+				// TODO Auto-generated method stub
+				m_CmdEditor = new FT_CodeEditor();
+				
+				m_CmdEditor.width = this.width -5;
+				m_CmdEditor.height = this.height -5;
+				m_CmdEditor.text = this.fi_UnixCmd.text;
+				m_CmdEditor.importFunc = OnImportCommand;
+				// set import button in cmd editor to send events hee
+		
+				
+				PopUpManager.addPopUp(m_CmdEditor, this, true);
+				PopUpManager.centerPopUp(m_CmdEditor);
+				m_CmdEditor.addEventListener(CloseEvent.CLOSE, OnCloseCmdEditor);
+			}
+			//------------------------	-----------------------------------------
+			private function OnCloseCmdEditor(evt:CloseEvent):void
+			{
+				//var win:FT_CodeEditor =evt.currentTarget as FT_CodeEditor;
+			
+				if(m_CmdEditor!=null)
+				{										
+					
+					var enable:Boolean = (fi_UnixCmd.text != m_CmdEditor.text);
+					fi_UnixCmd.text = m_CmdEditor.text;
+					DisEnableButtons(enable);										
+				}
+				CloseCmdEditor();
+			}
+			//---------------------------------------------
+			public function CloseCmdEditor():void
+			{
+				if(m_CmdEditor!=null)
+				{
+					PopUpManager.removePopUp(m_CmdEditor);
+					m_CmdEditor.OnClose();
+					m_CmdEditor = null;
+				}
+			}
+			//--------------------------------------------
+			protected function OnImportCommand(event:MouseEvent):void
+			{
+				var fileBrowser:ZG_FileUtils = new ZG_FileUtils();
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_COMPLETE,OnSelectCmd);
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_CANCEL,OnSelectCmd);		
+				fileBrowser.BrowseReadFile("","");// all file types		
+			}
+			
+			//------------------------------------------
+			private function OnSelectCmd(evt:ZG_Event):void
+			{								
+				if(evt.type == ZG_Event.EVT_READ_FILE_COMPLETE)
+				{			
+					if(evt.data!=null)
+					{	
+						// if command editor is open - set its text.
+						if(m_CmdEditor!=null)
+						{
+							m_CmdEditor.text = evt.data.data;
+						}
+						else
+						{
+							// enable OK button if different text was imported
+							DisEnableButtons(fi_UnixCmd.text!=evt.data.data);
+							fi_UnixCmd.text = evt.data.data;
+						}
+						
+					}
+				}				
+			}
+			
+			//-------------------------------------------
+			protected function OnCancel():void
+			{
+				dispatchEvent(new Event(Event.CLOSE));
+			}
+		]]>
+	</fx:Script>
+		
+	
+	<mx:Form id="m_PluginEditorForm" defaultButton="{m_SaveButton}" 
+			 creationComplete="OnFormInit(event)"
+			left="0" right="0" bottom="20" top="0">
+		
+		<mx:FormItem label="Category" fontWeight="bold">
+			<mx:ComboBox id="fi_PluginCategoryCB" open="OnComboBoxOpen(event)"
+						  change="OnUIElementChange(event)"
+						  editable="true" 						   
+						  width="325" height="22"
+						   toolTip="Click and type to create a new category	"
+						  />
+		</mx:FormItem>
+		<mx:FormItem label="Version" fontWeight="bold" >
+			<mx:TextInput id="fi_Version" fontWeight="normal"
+						  change="OnUIElementChange(event)"
+						    width="325"/>
+		</mx:FormItem>
+		
+		<mx:FormItem label="Creator" fontWeight="bold">
+			<mx:TextInput id="fi_Creator" fontWeight="normal"
+						  change="OnUIElementChange(event)"
+						   width="325"/>
+		</mx:FormItem>
+		
+		<mx:FormItem label="Action Name" fontWeight="bold">
+			<mx:TextInput id="fi_UiName" fontWeight="normal"
+						  change="OnUIElementChange(event)"
+						   width="325"/>
+		</mx:FormItem>
+		
+		<mx:FormItem label="Description" fontWeight="bold">
+			<mx:TextArea id="fi_Description" fontWeight="normal"
+						  change="OnUIElementChange(event)"
+						  height="50" width="325" wordWrap="true"/>
+		</mx:FormItem>
+		
+		<mx:FormItem label="Command"  fontWeight="bold" height="120" 
+					 toolTip="Command or script that executes on remote host" >		
+			<mx:FormItem direction="horizontal" paddingLeft="-12.5">
+				
+				<s:Button width="24" height="24" label="Command Editor" 
+						  click="OnShowPopupEditor(event)"
+						  toolTip="Show Command Editor"
+						  icon="@Embed('assets/edit-24.png')"/>
+				
+				<s:Button width="24" height="24" label="Import command" 
+						  click="OnImportCommand(event)"
+						  toolTip="Import command or script from file"
+						  icon="@Embed('assets/import-22.png')"/>
+				
+			</mx:FormItem>
+			
+		
+						  	
+			<mx:TextArea id="fi_UnixCmd" fontWeight="normal"
+						  change="OnUIElementChange(event)"
+						   height="89" width="325" wordWrap="true"/>
+			
+		</mx:FormItem>
+		<mx:FormItem label="Return Type" fontWeight="bold"  height="87">
+			
+			<mx:ComboBox id="fi_ReturnTypeCB" open="OnComboBoxOpen(event)"
+						 change="OnUIElementChange(event)"
+						  width="325"/>
+			
+			<mx:FormItem label="Delimiter" id="fi_Delimiter" 
+						 enabled="{fi_ReturnTypeCB.selectedItem=='Table'}">
+				<mx:ComboBox id="fi_Delimiters_CB" open="OnComboBoxOpen(event)"
+							 change="OnUIElementChange(event)"
+							 width="255"/>
+			</mx:FormItem>
+			
+			<mx:FormItem label="Number of Columns" id="fi_NumCols" 
+						 enabled="{fi_ReturnTypeCB.selectedItem=='Table'}">
+				<mx:TextInput id="fi_NumColumnsTI" fontWeight="normal"
+						  change="OnUIElementChange(event)" width="64"/>						  
+			</mx:FormItem>
+			
+		</mx:FormItem>
+		
+		<!--
+		<mx:FormItem label="Transport" fontWeight="bold" paddingBottom="0">
+			<mx:ComboBox id="fi_TransportCB" open="OnComboBoxOpen(event)"
+						 change="OnUIElementChange(event)"
+						  width="325"/>
+		</mx:FormItem>
+		-->
+		<mx:FormItem label="Has Parameters" fontWeight="bold"  visible="false">
+					
+			<s:CheckBox id="m_ParamsCB" click="OnToggleParametersView(event)">				
+			</s:CheckBox>
+						
+			<CustomControls:FT_UIParamsView id="m_UIParamsView" width="325" height="0" visible="false">											
+			
+			</CustomControls:FT_UIParamsView>	
+		</mx:FormItem>
+		<mx:FormItem height="35" borderVisible="false">
+			<s:BorderContainer  x="200" height="35"  width="327" borderVisible="false">
+				
+				<mx:Button label="Load" id="m_LoadButton"
+						   visible="false"
+						   click="OnLoad()"                
+						   fontWeight="bold" 
+						   x="172" y="10" width="70" height="21"/>
+				<mx:Button label="Reset" id="m_ResetButton" x="96" y="8" width="70" height="21" color="#000000"
+						   click="OnReset()"                
+						   fontWeight="bold" fontSize="12"/>
+				<mx:Button id="m_CancelBtn" x="172" y="8" width="70" height="21" label="Cancel"
+						   color="#000000" fontSize="12" fontWeight="bold"
+						   click="OnCancel()"
+						   />
+				<mx:Button label="OK" id="m_SaveButton" width="70" height="21"
+						   click="OnSave()"                
+						   x="248" y="8" 
+						   fontWeight="bold" 
+						   fontSize="12"/>
+				<s:Button x="248"  visible="false" y="10" label="Test" width="70" 
+						  height="21" 
+						  id="m_TestButton" fontWeight="bold" click="OnTest()"/>
+			</s:BorderContainer>
+			
+		
+		
+		</mx:FormItem>
+	</mx:Form>
+
+</s:VGroup>

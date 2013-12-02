@@ -1,0 +1,12 @@
+<FLATTTask>
+  <GUID>04fb9c3fbf66c6ce1dfbd282c0e43d973e43f3c6</GUID>
+  <Version/>
+  <Creator/>
+  <Name>Task Sample</Name>
+  <Description/>
+  <PluginList>
+    <PluginRef name="Step1" guid="3465a77e237c93cff2befd8135b9a2bc6f945dc1"/>
+    <PluginRef name="Step 2" guid="f112ab94390582b03ccb835592accad292550de9"/>
+    <PluginRef name="Step 3" guid="14bd0f19da2723838bcfa486c73f9bfdd1d77b6a"/>
+  </PluginList>
+</FLATTTask>

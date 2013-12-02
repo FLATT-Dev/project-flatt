@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Form xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="100%" 
+		 creationComplete="OnInit()" dropShadowVisible="true">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import Application.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			
+			import mx.collections.*;
+			
+			import spark.events.IndexChangeEvent;
+			// mnot used for now everything is on the general form mxml
+			protected function OnInit():void
+			{
+				this.toolTip = 
+					ZG_Utils.TranslateString("FLATT uses a proxy server to communicate with a remote host."+
+						"Internal proxy runs on local PC. "+
+						"External proxy is a standalone Java application. It uses SSL to communicate with FLATT."
+						);
+				// will read prefs and adjust address field  width
+				ReadPrefs();
+				AdjustAddressFieldWidth();
+			}
+			
+			//-------------------------------------
+			public function ReadPrefs():void
+			{
+				//If the proxy panel never was shown proxy type list is null, so check
+				if(m_ProxyTypeList!=null)
+				{
+					if(m_ProxyTypeList.dataProvider == null)
+					{
+						m_ProxyTypeList.dataProvider = new ArrayCollection(new Array(
+							ZG_Utils.TranslateString("Internal"),
+							ZG_Utils.TranslateString("External Secure Proxy")));
+							///*ZG_Utils.TranslateString("Tomcat Servlet"))*/);
+					}				
+					m_ProxyTypeList.selectedIndex = FT_Prefs.GetInstance().GetProxyType();
+					ReadPrefsForIndex(m_ProxyTypeList.selectedIndex);
+				}
+						
+			}
+			//-----------------------------
+			public function Save():void
+			{
+				// null proxy means this page was never initialized
+				if(m_ProxyTypeList!=null)
+				{
+					FT_Prefs.GetInstance().SetProxyType(m_ProxyTypeList.selectedIndex);
+					
+					switch(m_ProxyTypeList.selectedIndex)
+					{
+						case FT_Prefs.PROXY_TYPE_TOMCAT:
+							FT_Prefs.GetInstance().SetProxyUrl(m_ProxyURL.text);
+							break;
+						case FT_Prefs.PROXY_TYPE_STANDALONE_SSL:
+							FT_Prefs.GetInstance().SetProxyAddress(m_ProxyURL.text);
+							FT_Prefs.GetInstance().SetProxyPort(new Number(m_ProxyPort.text));
+							FT_Prefs.GetInstance().SetProxyCert(m_CertData.text);
+							FT_Prefs.GetInstance().SetCheckHostIdentity(m_CheckIdent.selected);
+							break;
+					}
+					//  tell the app which proxy we'e running
+					FT_Application.GetInstance().ConfigureProxy();
+				}
+			}
+			
+			//----------------------------------
+			protected function OnImportCert(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				var fileBrowser:ZG_FileUtils = new ZG_FileUtils();
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_COMPLETE,OnReadFileComplete);
+				fileBrowser.addEventListener(ZG_Event.EVT_READ_FILE_CANCEL,OnReadFileComplete);		
+				fileBrowser.BrowseReadFile("*","*");// TODO: only crt files						
+			}
+			//------------------------------------------
+			private function OnReadFileComplete(evt:ZG_Event):void
+			{								
+				if(evt.type == ZG_Event.EVT_READ_FILE_COMPLETE)
+				{			
+					if(evt.data  !=null)
+					{	
+						m_CertData.text = ZG_FileData(evt.data).data as String;					
+					}
+				}				
+			}
+			
+			
+			// shrink port edit field when list selection is not external proxy
+			protected function OnListSelChange(event:IndexChangeEvent):void
+			{
+				
+				ReadPrefsForIndex(m_ProxyTypeList.selectedIndex);
+				AdjustAddressFieldWidth();
+						
+			}
+			//------------------------------------
+			private function ReadPrefsForIndex( index:int):void
+			{
+				switch(index)
+				{
+					case FT_Prefs.PROXY_TYPE_TOMCAT:
+						m_ProxyURL.text = FT_Prefs.GetInstance().GetProxyUrl();
+						break;
+					case FT_Prefs.PROXY_TYPE_STANDALONE_SSL:
+						m_ProxyURL.text = FT_Prefs.GetInstance().GetProxyAddress();
+						m_ProxyPort.text = FT_Prefs.GetInstance().GetProxyPort().toString();
+						m_CertData.text = FT_Prefs.GetInstance().GetProxyCert();
+						m_CheckIdent.selected = FT_Prefs.GetInstance().GetCheckHostIdentity();
+						break;
+				}
+			}
+			//-----------------------------------------------------
+			private function AdjustAddressFieldWidth():void
+			{
+				if(m_ProxyTypeList.selectedIndex == FT_Prefs.PROXY_TYPE_STANDALONE_SSL )
+				{
+					m_PortFI.width = 100
+				}
+				else
+				{
+					m_PortFI.width = 0;
+				}				
+			}
+		]]>
+	</fx:Script>
+	<mx:FormHeading label="Proxy Server Settings" textAlign="left"/>
+	
+	<mx:FormItem label="Server Type" fontWeight="bold" width="90%" id="m_ProxyFormItem">
+		<s:DropDownList id="m_ProxyTypeList" width="100%" fontWeight="normal"  change="OnListSelChange(event)"></s:DropDownList>
+	</mx:FormItem>
+	
+	<mx:FormItem  label="Address" direction="horizontal" fontWeight="bold" 
+				 width="92%" visible="{m_ProxyTypeList.selectedIndex!= 0}">
+		
+		<s:TextInput id="m_ProxyURL" width="100%" fontWeight="normal"/>
+		
+		<mx:FormItem id = "m_PortFI"  label="Port" width="5%" visible="{m_ProxyTypeList.selectedIndex==1}">
+			<s:TextInput id="m_ProxyPort"  width="40" fontWeight="normal" />
+		</mx:FormItem>
+		
+	</mx:FormItem>
+	<mx:FormItem label="Check Host Identity" fontWeight="bold" 
+				 toolTip="Check if you do want host identity in the certificate to be verified"
+				  visible="{m_ProxyTypeList.selectedIndex == 1}" >
+		<s:CheckBox id="m_CheckIdent"  >
+			
+		</s:CheckBox>
+	
+	</mx:FormItem>
+	<mx:FormItem label="Certificate" fontWeight="bold" 
+				 width="90%" visible="{m_ProxyTypeList.selectedIndex == 1}" >
+				 
+		
+		<s:TextArea id="m_CertData" width="100%" height="150" fontWeight="normal" editable="true"
+					toolTip="Import certifcate from a file or paste from clipboard">
+		</s:TextArea>
+		
+		<s:Button label="Import" click="OnImportCert(event)"></s:Button>	
+		
+	</mx:FormItem>
+	
+</mx:Form>

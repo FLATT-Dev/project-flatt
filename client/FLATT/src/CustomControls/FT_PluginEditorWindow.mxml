@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Window xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" width="500" height="510" minWidth="500" minHeight="510" xmlns:Views="Views.*"
+		  closing="OnClosing(event)"
+		   creationComplete="OnInit()" xmlns:CustomControls="CustomControls.*">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import FLATTPlugin.*;
+			import Utility.*;
+			import com.ZG.Events.*;
+			import com.ZG.Logging.*;
+			import com.ZG.Utility.*;
+			
+			import mx.events.ResizeEvent;
+			//================================================
+			private static	var	s_Instance:FT_PluginEditorWindow;
+			private var _wasOpened:Boolean;
+			//------------------------------------------------
+			public static function GetInstance(makeVisible:Boolean = true ):FT_PluginEditorWindow
+			{
+				if(s_Instance == null)
+				{
+					s_Instance = new FT_PluginEditorWindow();
+					if(makeVisible)
+					{
+						s_Instance.open();
+					}
+				}
+				else
+				{
+					if(makeVisible)
+					{
+						if(!s_Instance.wasOpened)
+						{
+							s_Instance.open();
+						}
+						// explicitly make window visible - it causes all children to become visible
+						// in flex 3 could just call activate
+						
+						s_Instance.visible = true;
+						s_Instance.activate();
+					}
+				}
+				return s_Instance;
+			}
+			
+			//------------------------------------------------
+			private function OnInit():void
+			{
+				this.title = ZG_Utils.TranslateString("Edit Action");
+				m_PluginEditorView.addEventListener(Event.CLOSE,OnClose);
+				m_PluginEditorView.addEventListener(FT_Events.FT_EVT_VERT_RESIZE,OnVertResize);
+				
+			}
+			//------------------------------------------------
+			// this prevents the window from being closed and just hides it
+			private function OnClosing(event:Event):void
+			{
+				event.preventDefault();			 	
+				s_Instance.visible = false;	
+				s_Instance.m_PluginEditorView.CloseCmdEditor();
+				
+			}
+			//------------------------------------------------
+			public function SetPlugin(plugin:FT_Plugin):void
+			{
+				m_PluginEditorView.SetPlugin(plugin);
+			}
+			//------------------------------------------------
+			override public function open(openWindowActive:Boolean = true):void
+			{
+				_wasOpened = true;
+				super.open(openWindowActive);
+			}
+			//------------------------------------------------
+			public function get wasOpened():Boolean
+			{
+				return _wasOpened;
+			}
+			//------------------------------------------------
+			public function set wasOpened(value:Boolean):void
+			{
+				_wasOpened = value;
+			}
+			//------------------------------------------------
+			public function OnClose(event:Event):void
+			{
+				this.close();
+			}
+			//-----------------------------------------------
+			public function OnVertResize(evt:ZG_Event):void
+			{
+				var delta:Number = ZG_StringUtils.StringToNumEx(evt.data as String);				
+				this.height +=delta;
+			}
+
+		]]>
+	</fx:Script>
+	<CustomControls:FT_PluginEditorView left="0" top="0" right="0" bottom="0" horizontalCenter="0" 
+										 
+		 id="m_PluginEditorView">
+	</CustomControls:FT_PluginEditorView>
+</s:Window>

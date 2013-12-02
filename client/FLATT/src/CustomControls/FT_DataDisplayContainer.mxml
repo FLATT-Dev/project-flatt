@@ -1,0 +1,677 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:NavigatorContent xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="100%" 
+		 creationComplete="OnInit()" 
+		 xmlns:CustomControls="CustomControls.*" creationPolicy="none" xmlns:controls="controls.*">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			import CommonUI.*;
+			
+			import FLATTPlugin.*;
+			import Exec.*;
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Utility.*;
+			
+			import flashx.textLayout.conversion.*;
+			
+			import mx.charts.*;
+			import mx.charts.chartClasses.ChartBase;
+			import mx.collections.XMLListCollection;
+			import mx.controls.dataGridClasses.DataGridColumn;
+			import mx.formatters.DateFormatter;
+			import mx.graphics.*;
+			import mx.graphics.codec.JPEGEncoder;
+			import mx.graphics.codec.PNGEncoder;
+			
+			import spark.utils.*;
+			
+			private var m_DateFormatter:DateFormatter = new DateFormatter();			
+			private var m_PluginResults:Array = new Array();
+			private var m_ExecObj:FT_PluginExec; // exec object that executes this plugin
+			
+			private var m_TextFormatter:FT_TextOutputFormatter = null;
+			private var m_ResultType:String = FT_Strings.RTYPE_UNDEFINED;
+			private var LABEL_RERUN:String = "Rerun";
+			private var LABEL_CANCEL:String = "Cancel";
+			private var m_UserCanceled:Boolean = false;
+			private var _scheduleGuid:String="";
+			
+			
+			//=========================== 
+			// This is a container that houses various UI elements which display 
+			// data return from plugin
+			// --------------------------------------
+			// at this time we can be sure that the component has been initialized
+			// display data if plugin result is avaliable
+			private function OnInit():void
+			{
+				trace("DataDisplayContainer:OnInit");
+				m_DateFormatter.formatString = ZG_Strings.STR_DEFAULT_DATE_FORMAT;
+				ResetUI();
+				
+			}
+			//------------------------------------------
+			// if the component has been created already - updayte data immediately
+			// otherwise wait for creationComplete routine to do it
+			public function SetPluginResult(res:FT_PluginResult):void
+			{							
+					m_PluginResults.push(res);
+					
+					/* results may arrive out of order, depending on when execution completes (which is network dependent)
+					   Therefore we cannot rely on lastObj property ( TODO: delete it from pluginresult object(
+					   Instead,enable the button if num results == number of hosts in the group.
+					*/					
+					UpdateUI();		
+					DisplayData();
+			}
+			//---------------------------------------------
+			public function ExecFeedback(pluginResult:FT_PluginResult):void
+			{								
+					this.m_StatusText.text = pluginResult.execObj.curMessage;
+					trace("Exec Feedback: " + this.m_StatusText.text);
+					// check the rerun button
+					UpdateUI();				
+					m_StatusText.validateNow();
+					// if there is data in plugin result - this means that this is a continious plugin and data is displayed 
+					// right away
+					DisplayData(pluginResult);								
+			}			
+			//--------------------------------
+			public function PluginExecutionStarted(exec:FT_PluginExec,resetUI:Boolean):void
+			{
+				
+				// reset some variables
+				SetExec(exec);						
+				// At this point the UI may not be initialized yet, so check			
+				this.name = this.label = m_ExecObj.name;
+				ResetVars();
+				
+				if(resetUI)
+				{
+					ResetUI();	
+				}
+			}
+			//-----------------------------------------
+			// this is sent when a plugin is executed on a host
+			// becaue each host execution has its own plugin exec we need to tell UI whhich exec is currently running
+			public function SetExec(exec:FT_PluginExec):void
+			{
+				//save exec object
+				m_ExecObj = exec;
+			}
+			//--------------------------------
+			// for continuious there will be OnAppendData event			
+			/*private function OnDisplayData(evt:ZG_Event):void
+			{
+				m_PluginResult = evt.data as FT_PluginResult;
+				
+				if(m_PluginResult!=null)
+				{
+					DisplayData();					
+				}
+				else
+				{
+					//Display an errror of some kind
+				}				
+			}*/
+			//-------------------------------
+			//The meat of the thing.This is where we display data
+			// TODO: For now all elements  are static in this container.
+			// and the ones that are not needed are just hidden.
+			// Research if this is a good idea. The alternative is to build UI
+			// elements dynamically -
+			private function DisplayData(curRes:FT_PluginResult= null):void
+			{
+				if(curRes == null)
+				{
+					curRes = GetCurrentResultObject();
+				}
+				if(curRes!=null)				
+				{														
+					if(curRes.HasData())
+					{					
+						// get the last plugin we just added
+						//var curRes:FT_PluginResult = m_PluginResults[m_PluginResults.length -1];	
+						var pluginType:String = curRes.type;
+						// remember the result type. Used for export
+						if(m_ResultType== FT_Strings.RTYPE_UNDEFINED)
+						{
+							m_ResultType = pluginType;
+						}
+						//now taht we ensured the type - check it against known types
+						if(pluginType == FT_Strings.RTYPE_TEXT)
+						{							
+							BuildTextUI(curRes);							
+						}
+												
+						else if(pluginType == FT_Strings.RTYPE_TABLE)
+						{
+							BuildDataGridUI(curRes);
+						}
+						else if(pluginType == FT_Strings.RTYPE_LINECHART)
+						{
+							BuildLineChartUI(curRes);
+						}
+						else if (pluginType == FT_Strings.RTYPE_COLUMNCHART )
+						{
+							BuildBarChartUI(curRes);
+						}						
+					}
+					
+					if(ExecutionComplete())
+					{
+						this.m_StatusText.text = curRes.execObj.curMessage + " " + m_DateFormatter.format(curRes.timestamp);						
+					}
+				}
+				
+			}			
+			//------------------------------
+			private function BuildDataGridUI(result:FT_PluginResult):void
+			{
+				m_DataGrid.BuildDataGridUI(result);
+				/*var colNames:Array = new Array();
+				var dgCols:Array  = new Array();
+				var i:int;
+				// append data really means starting a new host
+				if(result.appendData)
+				{
+					// if appending data, the column names have been already set up
+					// extract them from the table and pass in
+					for(i=0; i < m_DataGrid.columns.length;++i)
+					{
+						colNames.push(m_DataGrid.columns[i].dataField);
+					}
+				}
+				
+				var xmlDP:XMLListCollection = result.GetData(colNames) as XMLListCollection;
+				
+				// not appending data - set up columns
+				if(!result.appendData)
+				{
+					// set up columns only if they have not been set up
+					for(i = 0; i < colNames.length;++i)
+					{
+						var newCol:DataGridColumn  = new DataGridColumn(colNames[i]);
+						newCol.dataField = colNames[i];
+						newCol.headerText = colNames[i];
+						newCol.itemRenderer = new ClassFactory(FT_TableResultLabel);
+				
+						newCol.visible = true;
+						dgCols.push(newCol);
+					}
+					
+					// For some reason I cannot just say datagrid.columns.push (newColumn)
+					// to add a new column. Need to create first and then assign the new array of columns to datagrid.columns property
+					m_DataGrid.columns = dgCols;
+					m_DataGrid.dataProvider = xmlDP;
+				}
+				else
+				{
+					// append to existing DG
+					m_DataGrid.dataProvider.addAll(xmlDP);
+				}
+				m_DataGrid.visible = true;*/
+			}
+			//-------------------------------
+			private function BuildLineChartUI(result:FT_PluginResult):void
+			{
+				m_LinechartView.SetupLineChart(result);
+				m_LinechartView.visible = true;
+			}
+			//-------------------------------
+			private function BuildBarChartUI(result:FT_PluginResult):void
+			{
+				m_ColumnChartView.SetupBarChart(result);
+				m_ColumnChartView.visible = true;
+			}
+			//-------------------------------
+			//Clean up previous UI
+			private function ResetUI():void
+			{				
+				// make all ui elements invisible and clear data providers
+				// check if UI elements have been initialized before clearing them
+				
+				// Clean up datagrid
+				if(m_DataGrid !=null)
+				{
+					m_DataGrid.visible = false;
+					m_DataGrid.dataProvider = null;
+					m_DataGrid.columns.length = 0;
+				}
+				if(m_TextArea!=null)
+				{
+					//TextArea
+					m_TextArea.visible = false;
+					m_TextArea.htmlText = "";
+					if( m_TextFormatter!=null)
+					{
+						m_TextFormatter.Reset();
+					}
+				}
+				if(m_LinechartView!=null)
+				{
+					// Line chart
+					m_LinechartView.visible = false;
+					m_LinechartView.Reset();
+				}
+				if(m_ColumnChartView!=null)
+				{
+					// Line chart
+					m_ColumnChartView.visible = false;
+					m_ColumnChartView.Reset();
+				}
+				if(m_RerunButton !=null)
+				{
+					// set exec object is called at the beginning of
+					// plugin execution,so disable rerun button
+					m_RerunButton.enabled = true;
+					m_RerunButton.label = LABEL_CANCEL;//UNDO LABEL_RERUN;
+				}
+				if(m_ExportBtn !=null)
+				{
+					// set exec object is called at the beginning of
+					// plugin execution,so disable rerun button
+					m_ExportBtn.enabled = false;
+				}
+				if(m_ProgresSpinner!=null)
+				{
+					m_ProgresSpinner.visible=true;
+					m_ProgresSpinner.play();
+				}
+				//Status text is already set, don't touch the contents
+				/*if(m_StatusText!=null)
+				{
+					m_StatusText.text = "";
+				}*/
+				
+			}
+			// the easiest :-)
+			//-------------------------------
+			private function BuildTextUI(result:FT_PluginResult):void
+			{				
+				if(m_TextFormatter == null )
+				{
+					m_TextFormatter = new FT_TextOutputFormatter();					
+				}
+				//m_TextFormatter.isTask = (result.execObj is FT_TaskPluginExec);
+				// ether name of task or plugin - not used in output for now
+				m_TextFormatter.name = result.execObj.name; 
+				/*if (result.execObj is FT_TaskPluginExec)
+				{
+					m_TextArea.htmlText=m_TextFormatter.FormatOutput(m_TextArea.htmlText,
+																 result.execResult,
+																 result.GetData() as String,
+																 result.execObj.targetHostObj.name,
+																 FT_TaskPluginExec(result.execObj).curExecutingPluginIndex,
+																 FT_TaskPluginExec(result.execObj).GetCompletedPluginName());
+				}
+				else*/
+				{
+					m_TextArea.htmlText=m_TextFormatter.FormatOutput(m_TextArea.htmlText,
+																	 result.execResult,
+																	 result.GetData() as String,
+																	 result.execObj.targetHostObj.name,
+																	 result.execObj.finishedPluginIndex,
+																	 result.execObj.finishedPluginName);// last 2 parameters are only used in tasks
+																	 
+					
+				}
+			
+				
+				m_TextArea.visible = true;
+			}
+			//-------------------------------
+			/* results may arrive out of order, depending on when execution completes (which is network dependent)
+			Therefore we cannot rely on the order of hosts in host group
+			Instead,enable the button if num results == number of hosts in the group.
+			Or if the host is not a group - just return true
+			
+			*/
+			private function ExecutionComplete():Boolean
+			{				
+				
+				if(m_ExecObj!=null)
+				{
+					return (m_ExecObj.execInProgress == false)
+				}
+				return m_UserCanceled;
+				
+				/*
+				var ret:Boolean = true;
+				if(m_UserCanceled)
+				{
+					return true;
+				}
+				
+				if(m_ExecObj!=null)
+				{
+					
+					// with tasks rely on inProgress variable
+					if(m_ExecObj is FT_TaskPluginExec) 
+					{
+						ret = (m_ExecObj.execInProgress == false)
+					}
+					// if the initial host is a group - check if all objects are done
+					// otherwise check if the exec object is not in progress and we have 1 result
+					else
+					{
+						ret = m_ExecObj.initialHost.isContainer? AllExecObjectsCompleted() : 
+							(m_ExecObj.execInProgress == false && m_PluginResults.length >0);						
+					}				
+				}
+				return ret;*/
+			}
+			
+			//--------------------------------------
+			//Iterate a list of plugin results and look at exec objsetc execInprogress flag
+			/*protected function AllExecObjectsCompleted():Boolean
+			{
+				// if the number of results reached the number of host's children  - check individual objects
+				//to see if they are done.
+				// otherwise return false - we have not gotten all results yet.
+				// This ensures that continuous plugins will never report that they are done
+				if(m_PluginResults.length >=m_ExecObj.initialHost.children.length)
+				{					
+					for( var i:int=0; i < m_PluginResults.length;++i)
+					{
+						if(m_PluginResults[i].execObj.execInProgress)
+						{
+							trace(m_PluginResults[i].execObj.name + " is still executing, AllExecObjectsCompleted returning false");
+							return false;
+						}
+					}
+					trace("AllExecObjectsCompleted is returning true");
+					return true;
+				}
+				return false;
+			}*/
+			//-------------------------------
+			protected function OnRerun(event:MouseEvent):void
+			{				
+				// if current button is cancel - cancel, otherwise continue
+				if( HandleUserCanceled())
+				{
+					return;
+				}
+				
+				ResetVars();
+				ResetUI();
+				
+				if(m_ExecObj is  FT_TaskPluginExec)
+				{
+					// the exec object is already set up with everything needed to rerun the task
+					//FT_PluginManager.GetInstance().ExecuteTask(null,null,m_ExecObj as FT_TaskPluginExec);	
+					callLater(FT_PluginManager.GetInstance().ExecuteTask,[null,null,m_ExecObj as FT_TaskPluginExec]);
+				}
+				else
+				{				
+					callLater(FT_PluginManager.GetInstance().ExecutePlugin,[null,null,m_ExecObj,null]);				
+				}
+			}
+			//-----------------------------------------------
+			public function HandleUserCanceled():Boolean
+			{				
+				if(m_RerunButton.label == LABEL_CANCEL )
+				{
+					
+					m_RerunButton.label = LABEL_RERUN;
+					m_UserCanceled = true;
+					// will cancel all siblings if there are any
+					if(m_ExecObj!=null )
+					{
+						m_ExecObj.requestObj.HandleUserCanceled();
+					}
+					
+					return true;
+				}
+				
+				return false;
+			}
+		//---------------------------------------------------
+			protected function OnExportData(event:MouseEvent):void
+			{
+			
+				var paramArr:Array = new Array();
+				paramArr.push(new String());
+				var data:Object = GetResultData(paramArr);
+				if(data!=null)
+				{
+					ZG_FileUtils.SaveAs(data,paramArr[0]);     
+				}
+				paramArr.length =0;
+			}
+			//-------------------------------------------------------
+			// argh cannot pass by reference - use array
+			private function GetResultData(fileNameArr:Array):Object
+			{
+				fileNameArr[0] = this.name+"_output."
+				switch(this.m_ResultType)
+				{
+					
+					case FT_Strings.RTYPE_TEXT:
+					{						
+						if(m_TextArea!=null && m_TextArea.htmlText!="")
+						{
+							fileNameArr[0]+="html";
+							var text:String = "";
+							try
+							{
+								// need to increase font size a bit
+								var pattern1:RegExp = /\:9pt/gi;
+								var pattern2:RegExp = /\:8pt/gi;
+								
+								text = m_TextArea.htmlText.replace(pattern1,":12pt");
+								if(text!=null)
+								{
+									text =  text.replace(pattern2,":12pt");
+								}
+							}
+							catch( e:Error)
+							{
+								trace(e.message);
+							}
+							return text;
+						}
+						break;
+					}
+						
+					case FT_Strings.RTYPE_LINECHART:
+					case FT_Strings.RTYPE_COLUMNCHART:
+					{
+						
+						/*private function saveAsImage():void
+						{
+						var pngSource:BitmapData = new BitmapData (chart.width, chart.height);
+						pngSource.draw(chart);
+						
+						var pngEncoder:PNGEncoder = new PNGEncoder();
+						var pngData:ByteArray = PNGEncoder.encode(pngSource); 
+						
+						var header:URLRequestHeader = new URLRequestHeader("Content-type", "application/octet-stream");
+						var uRLRequest:URLRequest = new URLRequest("/saveAsImage.php?name=chart.png");
+						uRLRequest.requestHeaders.push(header);
+						uRLRequest.method = URLRequestMethod.POST;
+						uRLRequest.data = pngData;
+						navigateToURL(uRLRequest);				
+						}*/
+						
+						var width:int;
+						var height:int;
+						var curChart:IBitmapDrawable
+						
+						if(m_LinechartView!=null && m_LinechartView.HasResults())
+						{
+							width = m_LinechartView.width;
+							height = m_LinechartView.height;
+							curChart = m_LinechartView as IBitmapDrawable;
+						}
+						else if(m_ColumnChartView!=null && m_ColumnChartView.GetPluginResult()!=null)
+						{
+							width = m_ColumnChartView.width;
+							height = m_ColumnChartView.height;
+							curChart = m_ColumnChartView as IBitmapDrawable;
+						}
+						
+						/*= (((m_LinechartView!=null && 
+							m_LinechartView.m_LineChart.dataProvider!=null)? m_LinechartView: m_ColumnChartView)) as IBitmapDrawable;
+						
+						var image:ImageSnapshot = ImageSnapshot.captureImage(curChart/*,96,new PNGEncoder());*/
+						
+						if(curChart!=null)
+						{
+							fileNameArr[0]+="png";
+							return ZG_Utils.SaveUIElement(curChart,width,height,ZG_Strings.STR_FORMAT_PNG);
+						}
+						break;	
+					}
+						
+					case FT_Strings.RTYPE_TABLE:
+					{
+						if(m_DataGrid!=null && m_DataGrid.dataProvider!=null)
+						{
+							fileNameArr[0]+="csv";
+							return ZG_Utils.ExportCSV(m_DataGrid,",");
+						}
+						break;
+					}
+					
+				}
+					return null;
+			}
+			//---------------------------------
+			private function UpdateUI():void
+			{
+				var  execComplete:Boolean = ExecutionComplete();
+				m_RerunButton.label = execComplete ? LABEL_RERUN : LABEL_CANCEL;
+				this.m_ExportBtn.enabled = (m_RerunButton.label == LABEL_RERUN)//this.m_RerunButton.enabled;
+				
+				if( execComplete )
+				{
+					m_ProgresSpinner.stop();
+					m_ProgresSpinner.visible = false;
+				}
+				else
+				{
+					if(!m_ProgresSpinner.isPlaying)
+					{
+						m_ProgresSpinner.visible = true;
+						m_ProgresSpinner.play();
+					}
+				}
+			}
+			//----------------------------------
+			// get current result object for this display
+			private function GetCurrentResultObject():FT_PluginResult
+			{
+				var curRes:FT_PluginResult = null;
+				if(m_PluginResults.length > 0)
+				{														
+					curRes = m_PluginResults[m_PluginResults.length -1];
+				}
+				return curRes;
+			}
+			//-------------------------------------------------
+			private function ResetVars():void
+			{
+				if(m_StatusText!=null)
+				{
+					m_StatusText.text="";	
+				}
+				m_PluginResults.length = 0;
+				m_UserCanceled = false;
+			}
+			//-------------------------------------------------
+			public function get scheduleGuid():String
+			{
+				return _scheduleGuid;
+			}
+			//-------------------------------------------------
+			public function set scheduleGuid(value:String):void
+			{
+				_scheduleGuid = value;
+			}
+	
+
+		]]>
+	</fx:Script>
+	
+	<fx:Style>
+		.DG_HEADER_STYLES
+		{
+			fontWeight: bold;
+		}
+	</fx:Style>
+	<!-- TODO: Place controls either here or in a separate pane under plugin output
+	<s:controlBarContent>
+			
+			<s:Label y="8" width="46" height="18" fontWeight="bold" text="Status:" x="10"/>
+			<s:Label y="8" text="OK.March 16 20:20:2011" height="18" width="353" left="66"/>
+			
+			<s:Button label="Rerun" id="m_RerunButton"  fontWeight="bold" y="7" x="429">
+			</s:Button>
+	
+	</s:controlBarContent>
+	
+	<mx:Canvas backgroundColor="#DDDDDD" left="0" right="0" top="0" height="40" visible="false">
+		    
+	</mx:Canvas>-->
+	
+	<CustomControls:FT_TableDataGrid 
+		top="0" 
+		left="0" 
+		right="0" 
+		bottom="34" 
+		id="m_DataGrid" 
+		visible="false" 
+		headerStyleName="DG_HEADER_STYLES"
+		>		
+	<CustomControls:columns></CustomControls:columns>			
+	</CustomControls:FT_TableDataGrid>
+	
+	<mx:HTML top="0" left="0"  right="0" bottom="34" id="m_TextArea" visible="false"/> 
+	
+	
+	<CustomControls:FT_LineChartView  
+		top="0" 
+		left="0"  
+		bottom="0" 
+		right="0" 
+		visible="false" 
+		id="m_LinechartView"
+	>		
+	</CustomControls:FT_LineChartView>
+	
+	<CustomControls:FT_ColumnChartView  
+		top="0" 
+		left="0"  
+		bottom="0" 
+		right="0" 
+		visible="false" 
+		id="m_ColumnChartView"
+		>		
+	</CustomControls:FT_ColumnChartView>
+	
+	<s:BorderContainer height="35" backgroundColor="#CCCCCC" bottom="0" right="0" left="0">
+		
+		<s:Label left="34" right="155" id="m_StatusText" top="8" verticalAlign="middle" visible="true"/>
+		
+		<s:Button label="Rerun" 
+				  skinClass="spark.skins.spark.ButtonSkin" 
+				  fontWeight="bold" id="m_RerunButton" y="6.5" 
+				  right="5" width="70" click="OnRerun(event)"
+				  enabled="false"
+				  />
+		<s:Button y="6.5" label="Export" right="79" enabled="false" id="m_ExportBtn" click="OnExportData(event)" fontWeight="bold" width="70"/>
+		<CustomControls:Spinner width="10" height="10" left="0" top="0" id="m_ProgresSpinner" visible="false"/>
+		
+	</s:BorderContainer>
+	
+	
+	
+</s:NavigatorContent>

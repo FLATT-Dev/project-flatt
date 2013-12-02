@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" 
+	cornerRadius="3" borderStyle="solid" >
+
+	<mx:Metadata>
+		[Event(name="search", type="CustomControls.SearchEvent")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.utils.ColorUtil;
+			import CustomControls.SearchEvent;
+				
+			//[Embed(source="assets/find.png")]
+			[Embed(source="assets/mag-glass-16x16.png")]
+            [Bindable]
+            public var _bgImage:Class; 
+			
+			[Bindable]
+			private var _bgHint:String="Search here..."; //Default label when empty 
+			
+			[Bindable]
+			private var _hintColour:uint = uint("0xAAAAAA");
+
+			private var _timer:Timer;
+			private var _timerDelay:int = 200; //in ms
+			
+			public function set backgroundImage(img:Class):void{
+				_bgImage = img;
+			}
+			
+			public function set delay(amount:int):void{
+				_timerDelay = amount;
+			}
+			
+			public function set hint(value:String):void{
+				_bgHint = value;
+			}
+			
+			private function hintColor():uint{
+				//Alert.show(this.parent
+				
+				return new uint("0x000000");
+			}
+			
+			public function get text():String{
+				return input.text;
+			}
+			
+			private function input_clickHandler(e:Event):void {
+				input.selectionBeginIndex = 0;
+				input.selectionEndIndex = input.text.length;
+			}
+		
+      		private function searchKeyHandler(event:KeyboardEvent):void {
+      			if (event.keyCode == Keyboard.ENTER ||
+      					event.keyCode == Keyboard.DOWN) {
+                	//something.setFocus(); //perhaps?
+        		} else {
+          			if (_timer == null) {
+            			_timer = new Timer(_timerDelay, 1);
+            			_timer.addEventListener(TimerEvent.TIMER_COMPLETE, function(e:Event):void {
+            				//tell the containing app to run whatever code is specified in the SearchField's "search" event handler
+              				dispatchEvent(new SearchEvent(SearchEvent.SEARCH_EVENT, input.text)); 
+            			});
+            			_timer.start();
+          			} else {
+            			_timer.reset();
+            			_timer.start();
+          			}      
+        		}       
+      		}
+			
+		]]>
+	</mx:Script>
+	<mx:Label id="bgLabel" x="25" y="3" text="{_bgHint}" />  
+	<mx:TextInput paddingTop="2" 
+	
+		focusIn="input.setStyle('backgroundAlpha',1.0)" 
+		focusOut="input.setStyle('backgroundAlpha',(input.text=='')?0.0:1.0)"
+		click="input_clickHandler(event)" 
+		paddingLeft="20" id="input" width="100%" keyUp="searchKeyHandler(event)" />
+		
+	<mx:Image source="{_bgImage}" id="bg" x="5" y="3"/>
+	
+	<mx:LinkButton toolTip="Clear this filter" label="x" useHandCursor="true" color="gray" 
+		right="2" fontSize="9" height="18" y="2" visible="{!input.text==''}">
+		<mx:click>
+			<![CDATA[
+				input.text='';
+		    	input.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_UP)); 
+		    	input.dispatchEvent(new FocusEvent(FocusEvent.FOCUS_OUT));
+			]]>
+		</mx:click>
+	</mx:LinkButton>
+		    					
+</mx:Canvas>

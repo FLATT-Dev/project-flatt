@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Window xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" 
+		  creationComplete="OnInit()"
+		  closing="OnClosing(event)"
+		  width="600" height="430" xmlns:CustomControls="CustomControls.*">
+	<s:layout>
+		<s:HorizontalLayout/>
+	</s:layout>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import FLATTPlugin.*;
+			
+			import Utility.*;
+			
+			import com.ZG.Events.*;
+			import com.ZG.Logging.*;
+			import com.ZG.Utility.*;
+			
+			import mx.events.ResizeEvent;
+			//================================================
+			private static	var	s_Instance:FT_PrefsWindow;
+			private var _wasOpened:Boolean;
+			//------------------------------------------------
+			public static function GetInstance(makeVisible:Boolean = true ):FT_PrefsWindow
+			{
+				if(s_Instance == null)
+				{
+					s_Instance = new FT_PrefsWindow();
+					if(makeVisible)
+					{
+						s_Instance.open();
+					}
+				}
+				else
+				{
+					if(makeVisible)
+					{
+						if(!s_Instance.wasOpened)
+						{
+							s_Instance.open();
+						}
+						// explicitly make window visible - it causes all children to become visible
+						// in flex 3 could just call activate
+						
+						s_Instance.visible = true;
+						s_Instance.activate();
+					}
+				}
+				return s_Instance;
+			}
+			
+			//------------------------------------------------
+			private function OnInit():void
+			{
+				this.title = ZG_Utils.TranslateString("Preferences");
+				m_PrefsView.addEventListener(Event.CLOSE, OnCloseWindow);
+				
+			}
+			//------------------------------------------------
+			// this prevents the window from being closed and just hides it
+			private function OnClosing(event:Event):void
+			{
+				event.preventDefault();			 	
+				s_Instance.visible = false;					   
+			}
+			//------------------------------------------------
+			public function SetPlugin(plugin:FT_Plugin):void
+			{
+				//m_PluginEditorView.SetPlugin(plugin);
+			}
+			//------------------------------------------------
+			override public function open(openWindowActive:Boolean = true):void
+			{
+				_wasOpened = true;
+				super.open(openWindowActive);
+			}
+			//------------------------------------------------
+			public function get wasOpened():Boolean
+			{
+				return _wasOpened;
+			}
+			//------------------------------------------------
+			public function set wasOpened(value:Boolean):void
+			{
+				_wasOpened = value;
+			}
+			//------------------------------------------------
+			public function OnClose(event:Event):void
+			{
+				this.close();
+			}
+			//-----------------------------------------------
+			public function OnVertResize(evt:ZG_Event):void
+			{
+				var delta:Number = ZG_StringUtils.StringToNumEx(evt.data as String);				
+				this.height +=delta;
+			}
+			//------------------------------------------
+			protected function OnCloseWindow(event:Event):void
+			{				
+				// just hide it
+				//dispatchEvent(new Event(Event.CLOSE));
+				this.close();
+			}
+			
+		]]>
+	</fx:Script>
+	<CustomControls:FT_PrefsView left="0" right="0" bottom="0" id="m_PrefsView">
+	</CustomControls:FT_PrefsView>
+</s:Window>
